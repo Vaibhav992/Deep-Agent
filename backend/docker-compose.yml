@@ -1,0 +1,86 @@
+services:
+  # No local Postgres — we use Neon (cloud-hosted PostgreSQL)
+  # Set DATABASE_URL in .env to your Neon connection string
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    volumes:
+      - redis_data:/data
+
+  kafka:
+    image: apache/kafka:3.7.0
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      CLUSTER_ID: "deepagent-kafka-cluster-001"
+    ports: ["9092:9092"]
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+
+  app:
+    build: ./
+    ports: ["8000:8000"]
+    depends_on: [redis, kafka]
+    env_file: .env
+    environment:
+      - DISPLAY=:99
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./skills:/app/skills
+      - user_files:/app/user_files
+      - browser_data:/app/browser_data
+    shm_size: "2gb"
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+
+  kafka_worker:
+    build: ./
+    command: python -m kafka_worker
+    depends_on: [kafka, redis]
+    env_file: .env
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - user_files:/app/user_files
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  celery_worker:
+    build: ./
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=2 --beat
+    depends_on: [redis]
+    env_file: .env
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/1
+    volumes:
+      - user_files:/app/user_files
+
+  langfuse:
+    image: langfuse/langfuse:latest
+    ports: ["3000:3000"]
+    environment:
+      - DATABASE_URL=postgresql://deepagent:deepagent@host.docker.internal:5432/langfuse
+      - NEXTAUTH_SECRET=your-secret
+      - NEXTAUTH_URL=http://localhost:3000
+    # Note: LangFuse needs its own Postgres. For local dev, point it at
+    # a local Postgres or use Neon with a separate "langfuse" database.
+
+volumes:
+  redis_data:
+  kafka_data:
+  user_files:
+  browser_data:

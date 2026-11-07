@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual env
+.venv/
+venv/
+env/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes
+pgdata/
+kafka_data/
+redis_data/
+
+# All markdown files ignored except README.md
+*.md
+!README.md
+
+# Alembic
+alembic/versions/*.py
+!alembic/versions/.gitkeep
+
+# Test
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Misc
+*.log
+*.pid
