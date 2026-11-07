@@ -1,23 +1,29 @@
 import time
+from typing import AsyncGenerator
+
+import structlog
+from langchain_core.messages import HumanMessage, AIMessage
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agent.graph import agent_graph
+from app.agent.state import AgentState
 from app.chat.models import ChatMessage
 from app.chat.schemas import ChatRequest
+from app.events.producer import KafkaProducer
+from app.events.schemas import NodeStartedEvent, NodeCompletedEvent
 from app.sessions import service as session_service
-from app.utils.id_generator import generate_id
+from app.utils.id_generator import generate_id, generate_uuid
+
+logger = structlog.get_logger()
 
 
-async def process_chat_echo(
+async def process_chat(
     db: AsyncSession, user_id: str, request: ChatRequest
 ) -> ChatMessage:
-    """Echo-mode chat: stores the message and echoes it back.
-
-    This is the Phase 1 placeholder. Phase 2 replaces this with
-    the LangGraph agent invocation.
-    """
+    """Run the agent graph and return the final assistant message."""
     start = time.monotonic()
+    trace_id = generate_uuid()
 
-    # Save user message
     user_msg = ChatMessage(
         id=generate_id("msg"),
         session_id=request.session_id,
@@ -27,30 +33,195 @@ async def process_chat_echo(
     )
     db.add(user_msg)
 
-    # Generate echo response
-    echo_content = f"[Echo] {request.message}"
-    model_used = request.model or "echo"
-    provider = request.provider or "local"
+    initial_state: AgentState = {
+        "messages": [HumanMessage(content=request.message)],
+        "user_id": user_id,
+        "session_id": request.session_id,
+        "next_node": "",
+        "from_node": "",
+        "research_plan": [],
+        "current_step": 0,
+        "max_steps": 0,
+        "gathered_context": [],
+        "sources": [],
+        "model_name": request.model,
+        "purpose": "fast",
+        "trace_id": trace_id,
+        "turn_start_time": start,
+        "total_tokens_input": 0,
+        "total_tokens_output": 0,
+        "total_cost_usd": 0.0,
+    }
+
+    result = await agent_graph.ainvoke(initial_state)
+
+    final_messages = result.get("messages", [])
+    ai_messages = [m for m in final_messages if isinstance(m, AIMessage)]
+    final_content = ai_messages[-1].content if ai_messages else "No response generated."
 
     elapsed_ms = (time.monotonic() - start) * 1000
+    model_used = request.model or "gemini-2.5-flash"
+    provider = request.provider or "gemini"
 
     assistant_msg = ChatMessage(
         id=generate_id("msg"),
         session_id=request.session_id,
         user_id=user_id,
         role="assistant",
-        content=echo_content,
+        content=final_content,
         model_used=model_used,
         provider=provider,
         latency_ms=elapsed_ms,
     )
     db.add(assistant_msg)
 
-    # Update session stats
     session = await session_service.get_session(db, request.session_id, user_id)
     if session:
         session.message_count += 2
 
     await db.commit()
     await db.refresh(assistant_msg)
+
+    logger.info(
+        "chat_completed",
+        session_id=request.session_id,
+        trace_id=trace_id,
+        latency_ms=round(elapsed_ms, 1),
+        from_node=result.get("from_node", "unknown"),
+    )
+
     return assistant_msg
+
+
+async def process_chat_stream(
+    db: AsyncSession, user_id: str, request: ChatRequest
+) -> AsyncGenerator[dict, None]:
+    """Stream agent graph execution as SSE events.
+
+    Yields events as they happen:
+    - {"event": "node", "data": {"node": "router", "status": "started"}}
+    - {"event": "node", "data": {"node": "router", "status": "completed"}}
+    - {"event": "step", "data": {"step": 1, "total": 3, "task": "..."}}
+    - {"event": "content", "data": {"token": "..."}} (final answer)
+    - {"event": "done", "data": {"model": "...", "latency_ms": ...}}
+    """
+    start = time.monotonic()
+    trace_id = generate_uuid()
+
+    user_msg = ChatMessage(
+        id=generate_id("msg"),
+        session_id=request.session_id,
+        user_id=user_id,
+        role="user",
+        content=request.message,
+    )
+    db.add(user_msg)
+
+    initial_state: AgentState = {
+        "messages": [HumanMessage(content=request.message)],
+        "user_id": user_id,
+        "session_id": request.session_id,
+        "next_node": "",
+        "from_node": "",
+        "research_plan": [],
+        "current_step": 0,
+        "max_steps": 0,
+        "gathered_context": [],
+        "sources": [],
+        "model_name": request.model,
+        "purpose": "fast",
+        "trace_id": trace_id,
+        "turn_start_time": start,
+        "total_tokens_input": 0,
+        "total_tokens_output": 0,
+        "total_cost_usd": 0.0,
+    }
+
+    final_content = ""
+    last_node = "unknown"
+    model_used = request.model or "gemini-2.5-flash"
+    provider = request.provider or "gemini"
+
+    try:
+        kafka = await KafkaProducer.get()
+    except Exception:
+        kafka = None
+
+    async for event in agent_graph.astream(initial_state, stream_mode="updates"):
+        for node_name, node_output in event.items():
+            last_node = node_name
+
+            yield {"event": "node", "data": {"node": node_name, "status": "started"}}
+
+            if kafka:
+                await kafka.emit(
+                    "agent.events",
+                    NodeStartedEvent(session_id=request.session_id, node_name=node_name, trace_id=trace_id),
+                    key=request.session_id,
+                )
+
+            if node_name == "planner" and "research_plan" in node_output:
+                plan = node_output["research_plan"]
+                for i, step in enumerate(plan):
+                    yield {"event": "step", "data": {"step": i + 1, "total": len(plan), "task": step}}
+
+            if node_name == "researcher" and "current_step" in node_output:
+                step = node_output.get("current_step", 0)
+                total = len(node_output.get("research_plan", initial_state.get("research_plan", [])))
+                yield {"event": "progress", "data": {"step": step, "total": total}}
+
+            new_messages = node_output.get("messages", [])
+            ai_msgs = [m for m in new_messages if isinstance(m, AIMessage)]
+            if ai_msgs:
+                content = ai_msgs[-1].content
+                if node_name in ("synthesizer", "direct_answer"):
+                    final_content = content
+                    yield {"event": "content", "data": {"token": content}}
+
+            yield {"event": "node", "data": {"node": node_name, "status": "completed"}}
+
+            if kafka:
+                node_elapsed = (time.monotonic() - start) * 1000
+                await kafka.emit(
+                    "agent.events",
+                    NodeCompletedEvent(
+                        session_id=request.session_id,
+                        node_name=node_name,
+                        duration_ms=node_elapsed,
+                        trace_id=trace_id,
+                    ),
+                    key=request.session_id,
+                )
+
+    elapsed_ms = (time.monotonic() - start) * 1000
+
+    if not final_content:
+        final_content = "No response generated."
+
+    assistant_msg = ChatMessage(
+        id=generate_id("msg"),
+        session_id=request.session_id,
+        user_id=user_id,
+        role="assistant",
+        content=final_content,
+        model_used=model_used,
+        provider=provider,
+        latency_ms=elapsed_ms,
+    )
+    db.add(assistant_msg)
+
+    session = await session_service.get_session(db, request.session_id, user_id)
+    if session:
+        session.message_count += 2
+
+    await db.commit()
+
+    yield {
+        "event": "done",
+        "data": {
+            "message_id": assistant_msg.id,
+            "model": model_used,
+            "provider": provider,
+            "latency_ms": round(elapsed_ms, 1),
+        },
+    }

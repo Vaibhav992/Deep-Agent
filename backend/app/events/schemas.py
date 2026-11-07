@@ -61,11 +61,13 @@ class GuardrailCheckEvent(BaseEvent):
     event_type: str = "input_checked"
     user_id: str
     session_id: str
-    direction: str
-    layer: str
-    decision: str
+    direction: str  # "input" or "output"
+    check_type: str = ""  # e.g. "safety", "pii", "topic_allowed"
+    decision: str = ""  # "pass", "block", "flag"
+    noul_value: float | None = None  # Jev Noul result (0-1 probability)
+    choice_value: str | None = None  # Jev Choice result
+    score_value: int | None = None  # Jev Score result
     confidence: float | None = None
-    jev_response: dict | None = None
     latency_ms: float = 0.0
 
 

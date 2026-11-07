@@ -39,7 +39,7 @@ class ClerkAuthMiddleware(BaseHTTPMiddleware):
 
     Public routes (health, webhooks, docs) skip auth.
     """
-    PUBLIC_PATHS = {"/health", "/docs", "/openapi.json", "/webhooks/clerk"}
+    PUBLIC_PATHS = {"/health", "/docs", "/openapi.json"}
 
     async def dispatch(self, request: Request, call_next):
         if request.url.path in self.PUBLIC_PATHS or request.method == "OPTIONS":

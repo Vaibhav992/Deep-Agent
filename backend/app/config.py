@@ -21,12 +21,11 @@ class Settings(BaseSettings):
     # Auth (Clerk)
     CLERK_SECRET_KEY: str = ""
     CLERK_PUBLISHABLE_KEY: str = ""
-    CLERK_WEBHOOK_SECRET: str = ""
     CLERK_JWKS_URL: str = "https://api.clerk.com/v1/jwks"
 
-    # AI Guardrails (Jev)
+    # AI Guardrails (Jev via typesafe-sdk — SDK reads TYPESAFE_API_KEY from env)
     TYPESAFE_API_KEY: str = ""
-    JEV_MODEL: str = "jev-1.14.0"
+    JEV_MODEL: str = "jev-latest"
 
     # LLM Providers
     GOOGLE_GENAI_API_KEY: str = ""

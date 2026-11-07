@@ -2,10 +2,8 @@ from fastapi import APIRouter, Depends
 
 from app.auth.dependencies import get_current_user
 from app.auth.models import User
-from app.auth.webhook import router as webhook_router
 
 router = APIRouter()
-router.include_router(webhook_router)
 
 
 @router.get("/auth/me", tags=["auth"])

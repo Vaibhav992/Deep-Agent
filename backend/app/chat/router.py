@@ -8,7 +8,7 @@ from app.db.database import get_db
 from app.auth.dependencies import get_current_user
 from app.auth.models import User
 from app.chat.schemas import ChatRequest, ChatResponse
-from app.chat.service import process_chat_echo
+from app.chat.service import process_chat, process_chat_stream
 from app.sessions import service as session_service
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -24,12 +24,12 @@ async def chat(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    msg = await process_chat_echo(db, user.id, data)
+    msg = await process_chat(db, user.id, data)
     return ChatResponse(
         message_id=msg.id,
         content=msg.content,
-        model_used=msg.model_used or "echo",
-        provider=msg.provider or "local",
+        model_used=msg.model_used or "gemini-2.5-flash",
+        provider=msg.provider or "gemini",
         tokens_input=msg.tokens_input,
         tokens_output=msg.tokens_output,
     )
@@ -41,15 +41,16 @@ async def chat_stream(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """SSE streaming endpoint. Phase 1: echoes via SSE events.
-    Phase 2: streams LangGraph agent tokens.
-    """
+    """SSE streaming endpoint. Streams agent graph node events + final answer."""
     session = await session_service.get_session(db, data.session_id, user.id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
     async def event_generator():
-        yield {"event": "content", "data": json.dumps({"token": f"[Echo] {data.message}"})}
-        yield {"event": "done", "data": json.dumps({"model": "echo", "provider": "local"})}
+        async for event in process_chat_stream(db, user.id, data):
+            yield {
+                "event": event["event"],
+                "data": json.dumps(event["data"]),
+            }
 
     return EventSourceResponse(event_generator())
