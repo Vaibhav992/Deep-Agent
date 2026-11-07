@@ -66,6 +66,7 @@ processing is needed.
 
 Respond with exactly one word:
 - "research" — if the question needs multi-step research, analysis, or deep investigation
+- "browse" — if the user wants to interact with a website (navigate, click, fill forms, scrape data)
 - "direct" — if the question can be answered directly without research (greetings, simple facts, clarifications, follow-ups)
 
 User message: {message}"""

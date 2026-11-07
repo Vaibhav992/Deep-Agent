@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.graph import agent_graph
 from app.agent.state import AgentState
+from app.security.pipeline import check_input as guardrail_check_input, check_output as guardrail_check_output, GuardrailDecision
 from app.chat.models import ChatMessage
 from app.chat.schemas import ChatRequest
 from app.events.producer import KafkaProducer
@@ -48,6 +49,20 @@ async def process_chat(
     """Run the agent graph and return the final assistant message."""
     start = time.monotonic()
     trace_id = generate_uuid()
+
+    # Pre-LLM guardrail check (Layers 1-3)
+    guard_result = await guardrail_check_input(request.message, user_id, request.session_id)
+    if guard_result.decision == GuardrailDecision.BLOCKED:
+        blocked_msg = ChatMessage(
+            id=generate_id("msg"),
+            session_id=request.session_id,
+            user_id=user_id,
+            role="assistant",
+            content=f"I can't process that request. Reason: {guard_result.reason}",
+        )
+        db.add(blocked_msg)
+        await db.commit()
+        return blocked_msg
 
     user_msg = ChatMessage(
         id=generate_id("msg"),
@@ -98,6 +113,11 @@ async def process_chat(
     final_messages = result.get("messages", [])
     ai_messages = [m for m in final_messages if isinstance(m, AIMessage)]
     final_content = ai_messages[-1].content if ai_messages else "No response generated."
+
+    # Post-LLM guardrail check (Layer 4: output validation)
+    output_guard = await guardrail_check_output(final_content, user_id, request.session_id)
+    if output_guard.decision == GuardrailDecision.BLOCKED:
+        final_content = "I generated a response but it was flagged by safety filters. Please try rephrasing your question."
 
     elapsed_ms = (time.monotonic() - start) * 1000
     model_used = request.model or "gemini-2.5-flash"
@@ -153,6 +173,12 @@ async def process_chat_stream(
     """
     start = time.monotonic()
     trace_id = generate_uuid()
+
+    # Pre-LLM guardrail check (Layers 1-3)
+    guard_result = await guardrail_check_input(request.message, user_id, request.session_id)
+    if guard_result.decision == GuardrailDecision.BLOCKED:
+        yield {"event": "blocked", "data": {"reason": guard_result.reason}}
+        return
 
     user_msg = ChatMessage(
         id=generate_id("msg"),

@@ -135,3 +135,22 @@ class DocumentEmbedding(Base):
     __table_args__ = (
         Index("idx_de_user_type", "user_id", "doc_type"),
     )
+
+
+class GuardrailLog(Base):
+    """Audit log for all guardrail decisions."""
+    __tablename__ = "guardrail_log"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[str] = mapped_column(String(255))
+    session_id: Mapped[str] = mapped_column(String(255))
+    direction: Mapped[str] = mapped_column(String(10))
+    layer: Mapped[str] = mapped_column(String(50))
+    decision: Mapped[str] = mapped_column(String(20))
+    confidence: Mapped[float] = mapped_column(default=0.0)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("idx_gl_user_decision", "user_id", "decision"),
+    )

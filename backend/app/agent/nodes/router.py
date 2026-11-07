@@ -25,7 +25,12 @@ async def router_node(state: AgentState) -> dict:
     ])
 
     decision = response.content.strip().lower()
-    next_node = "planner" if "research" in decision else "direct_answer"
+    if "research" in decision:
+        next_node = "planner"
+    elif "browse" in decision:
+        next_node = "browser_agent"
+    else:
+        next_node = "direct_answer"
 
     elapsed = (time.monotonic() - start) * 1000
     logger.info("router_decision", decision=next_node, latency_ms=round(elapsed, 1))
