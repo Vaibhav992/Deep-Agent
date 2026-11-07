@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, model_validator
 from functools import lru_cache
 
 
@@ -15,8 +15,10 @@ class Settings(BaseSettings):
     DATABASE_POOL_SIZE: int = 5
     DATABASE_MAX_OVERFLOW: int = 10
 
-    # Redis
+    # Redis — local dev uses REDIS_URL, production uses Upstash HTTP SDK
     REDIS_URL: str = "redis://localhost:6379/0"
+    UPSTASH_REDIS_REST_URL: str = ""
+    UPSTASH_REDIS_REST_TOKEN: str = ""
 
     # Auth (Clerk)
     CLERK_SECRET_KEY: str = ""
@@ -39,7 +41,7 @@ class Settings(BaseSettings):
     LLM_DEFAULT_MODEL: str = "gemini-2.5-flash"
     LLM_REASONING_MODEL: str = "gemini-2.5-pro"
     LLM_FAST_MODEL: str = "gemini-2.5-flash"
-    LLM_CODING_MODEL: str = "deepseek/deepseek-coder"
+    LLM_CODING_MODEL: str = "deepseek-chat"
 
     # Embeddings & Re-ranking (Cohere)
     COHERE_API_KEY: str = ""
@@ -52,10 +54,11 @@ class Settings(BaseSettings):
     LANGFUSE_SECRET_KEY: str = ""
     LANGFUSE_HOST: str = "http://localhost:3000"
 
-    # Kafka
+    # Kafka (local dev via docker-compose — Upstash Kafka was shut down March 2025)
     KAFKA_BOOTSTRAP_SERVERS: str = "localhost:9092"
+    KAFKA_ENABLED: bool = False
 
-    # Celery (periodic jobs only)
+    # Celery (periodic jobs only — uses Redis as broker)
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"
 
     # Browser
@@ -65,6 +68,15 @@ class Settings(BaseSettings):
 
     # Security
     RATE_LIMIT_PER_MINUTE: int = 30
+
+    @model_validator(mode="after")
+    def fix_database_url(self):
+        """Auto-fix DATABASE_URL for SQLAlchemy async driver."""
+        if self.DATABASE_URL.startswith("postgresql://"):
+            self.DATABASE_URL = self.DATABASE_URL.replace(
+                "postgresql://", "postgresql+asyncpg://", 1
+            )
+        return self
 
     @property
     def is_production(self) -> bool:

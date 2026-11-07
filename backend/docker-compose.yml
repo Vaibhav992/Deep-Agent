@@ -1,6 +1,4 @@
 services:
-  # No local Postgres — we use Neon (cloud-hosted PostgreSQL)
-  # Set DATABASE_URL in .env to your Neon connection string
 
   redis:
     image: redis:7-alpine
@@ -76,8 +74,7 @@ services:
       - DATABASE_URL=postgresql://deepagent:deepagent@host.docker.internal:5432/langfuse
       - NEXTAUTH_SECRET=your-secret
       - NEXTAUTH_URL=http://localhost:3000
-    # Note: LangFuse needs its own Postgres. For local dev, point it at
-    # a local Postgres or use Neon with a separate "langfuse" database.
+
 
 volumes:
   redis_data:

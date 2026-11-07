@@ -1,8 +1,9 @@
 import time
+import uuid as _uuid
 from typing import AsyncGenerator
 
 import structlog
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.graph import agent_graph
@@ -11,10 +12,34 @@ from app.chat.models import ChatMessage
 from app.chat.schemas import ChatRequest
 from app.events.producer import KafkaProducer
 from app.events.schemas import NodeStartedEvent, NodeCompletedEvent
+from app.memory.working_memory import load_working_memory, append_to_working_memory
+from app.memory.long_term_memory import get_ltm_for_context
 from app.sessions import service as session_service
 from app.utils.id_generator import generate_id, generate_uuid
 
 logger = structlog.get_logger()
+
+
+async def _build_memory_context(db: AsyncSession, user_id: str, session_id: str) -> str:
+    """Load STM + LTM and format as context for the agent."""
+    parts = []
+    try:
+        uid = _uuid.UUID(user_id)
+        sid = _uuid.UUID(session_id)
+
+        stm = await load_working_memory(db, uid, sid)
+        if stm:
+            stm_text = "\n".join(f"[{e.get('role', '?')}] {e.get('content', '')}" for e in stm[-10:])
+            parts.append(f"<working_memory>\n{stm_text}\n</working_memory>")
+
+        ltm = await get_ltm_for_context(db, uid)
+        if ltm:
+            ltm_text = "\n".join(f"- [{e['category']}] {e['content']}" for e in ltm)
+            parts.append(f"<long_term_memory>\n{ltm_text}\n</long_term_memory>")
+    except Exception as e:
+        logger.warning("memory_load_failed", error=str(e))
+
+    return "\n\n".join(parts)
 
 
 async def process_chat(
@@ -33,8 +58,23 @@ async def process_chat(
     )
     db.add(user_msg)
 
+    # Load memory context (STM + LTM)
+    memory_context = await _build_memory_context(db, user_id, request.session_id)
+    messages = []
+    if memory_context:
+        messages.append(SystemMessage(content=f"Memory context:\n{memory_context}"))
+    messages.append(HumanMessage(content=request.message))
+
+    # Save user message to STM
+    try:
+        uid = _uuid.UUID(user_id)
+        sid = _uuid.UUID(request.session_id)
+        await append_to_working_memory(db, uid, sid, "user", request.message)
+    except Exception as e:
+        logger.warning("stm_append_failed", error=str(e))
+
     initial_state: AgentState = {
-        "messages": [HumanMessage(content=request.message)],
+        "messages": messages,
         "user_id": user_id,
         "session_id": request.session_id,
         "next_node": "",
@@ -79,6 +119,12 @@ async def process_chat(
     if session:
         session.message_count += 2
 
+    # Save assistant response to STM
+    try:
+        await append_to_working_memory(db, uid, sid, "assistant", final_content)
+    except Exception as e:
+        logger.warning("stm_append_failed", error=str(e))
+
     await db.commit()
     await db.refresh(assistant_msg)
 
@@ -117,8 +163,23 @@ async def process_chat_stream(
     )
     db.add(user_msg)
 
+    # Load memory context (STM + LTM)
+    memory_context = await _build_memory_context(db, user_id, request.session_id)
+    messages = []
+    if memory_context:
+        messages.append(SystemMessage(content=f"Memory context:\n{memory_context}"))
+    messages.append(HumanMessage(content=request.message))
+
+    # Save user message to STM
+    try:
+        uid = _uuid.UUID(user_id)
+        sid = _uuid.UUID(request.session_id)
+        await append_to_working_memory(db, uid, sid, "user", request.message)
+    except Exception as e:
+        logger.warning("stm_append_failed", error=str(e))
+
     initial_state: AgentState = {
-        "messages": [HumanMessage(content=request.message)],
+        "messages": messages,
         "user_id": user_id,
         "session_id": request.session_id,
         "next_node": "",
@@ -213,6 +274,12 @@ async def process_chat_stream(
     session = await session_service.get_session(db, request.session_id, user_id)
     if session:
         session.message_count += 2
+
+    # Save assistant response to STM
+    try:
+        await append_to_working_memory(db, uid, sid, "assistant", final_content)
+    except Exception as e:
+        logger.warning("stm_append_failed", error=str(e))
 
     await db.commit()
 

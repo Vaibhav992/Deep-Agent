@@ -20,8 +20,9 @@ asyncpg>=0.30.0
 alembic>=1.14.0
 pgvector>=0.3.0
 
-# Cache
+# Cache (local dev uses redis-py, production uses Upstash HTTP SDK)
 redis[hiredis]>=5.0.0
+upstash-redis>=1.0.0
 
 # Auth
 PyJWT[crypto]>=2.9.0
