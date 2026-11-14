@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { EASE_IN_OUT, EASE_OUT, FULL_MOTION, REDUCED_MOTION, gsap, useGSAP } from "@/lib/gsap";
 import {
   AlertTriangle, ArrowLeft, Brain, Check, ChevronDown, Circle, Database, FileText, Globe, Hourglass,
   Link2, ListTree, Loader2, MousePointerClick, MoveVertical, PenLine, Search, Keyboard, X, Monitor,
@@ -117,7 +118,7 @@ function ToolRow({ tool }: { tool: ToolCall }) {
         <RowStatus status={tool.status} />
       </button>
       {open && (
-        <div className="mb-1 ml-7 mr-2 space-y-1.5 rounded-md border border-line bg-surface-1 p-2.5 font-mono text-[11.5px] leading-[18px] text-fg-2">
+        <div className="mb-1 ml-7 mr-2 space-y-1.5 rounded-[10px] bg-surface-2 p-2.5 font-mono text-[11.5px] leading-[18px] text-fg-2">
           <div><span className="text-fg-3">tool </span>{tool.tool}</div>
           {tool.args !== "{}" && <div className="break-all"><span className="text-fg-3">args </span>{tool.args}</div>}
           {tool.result && <div className="break-words"><span className="text-fg-3">result </span>{tool.result}</div>}
@@ -172,24 +173,61 @@ export default function RunCard({
   const summary = runSummary(run);
   const latestFrame = run.frames[run.frames.length - 1];
 
+  // When a live run finishes, keep the timeline mounted while it folds away (see useGSAP below).
+  const [prevRunning, setPrevRunning] = useState(running);
+  const [folding, setFolding] = useState(false);
+  if (prevRunning !== running) {
+    setPrevRunning(running);
+    if (!running && userExpanded === null && hasActivity) setFolding(true);
+  }
+  const showBody = hasActivity && (expanded || folding);
+
+  const cardRef = useRef<HTMLElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useGSAP(
+    () => {
+      const body = bodyRef.current;
+      if (!folding || !body) return;
+      const mm = gsap.matchMedia();
+      mm.add({ reduce: REDUCED_MOTION, full: FULL_MOTION }, (ctx) => {
+        const tl = gsap.timeline({ onComplete: () => setFolding(false) });
+        if (ctx.conditions?.reduce) {
+          tl.to(body, { opacity: 0, duration: 0.2 });
+          return;
+        }
+        // Rows leave bottom-up, then the panel folds: a single, deliberate "this run is done" beat.
+        tl.to(body.querySelectorAll("li"), {
+          opacity: 0, y: -4, duration: 0.16, ease: EASE_OUT, stagger: { each: 0.018, from: "end" },
+        }).to(body, { height: 0, paddingTop: 0, paddingBottom: 0, opacity: 0, duration: 0.38, ease: EASE_IN_OUT }, "-=0.06");
+      });
+      return () => mm.revert();
+    },
+    { dependencies: [folding], scope: cardRef },
+  );
+
   return (
     <section
-      className={`overflow-hidden rounded-[10px] border bg-surface-1 ${running ? "border-line-strong" : "border-line"}`}
+      ref={cardRef}
+      className={`overflow-hidden rounded-[14px] border bg-canvas transition-colors duration-300 ${running ? "border-line-strong" : "border-line"}`}
       aria-label="Agent activity"
     >
       <header className="flex items-center gap-2.5 px-3.5 py-2.5">
         <StatusDot status={run.status} />
-        <span className={`text-[13px] ${running ? "text-fg" : run.status === "failed" ? "text-danger" : "text-fg-2"}`} aria-live="polite">
+        <span
+          key={running ? "running" : run.status}
+          className={`text-[13px] ${running ? "text-fg" : `swap-in ${run.status === "failed" ? "text-danger" : "text-fg-2"}`}`}
+          aria-live="polite"
+        >
           {statusLabel(run)}
         </span>
         <span className="tabular font-mono text-[12px] text-fg-3">{formatDuration(elapsed)}</span>
-        {!running && summary && <span className="hidden truncate text-[12px] text-fg-3 sm:inline">· {summary}</span>}
+        {!running && summary && <span className="swap-in hidden truncate text-[12px] text-fg-3 sm:inline">· {summary}</span>}
         <div className="ml-auto flex items-center gap-1">
           {latestFrame && (
             <button
               onClick={onShowBrowser}
-              className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] transition-colors ${
-                browserFocused ? "bg-signal-wash text-signal" : "text-fg-2 hover:bg-surface-2 hover:text-fg"
+              className={`press flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] transition-colors ${
+                browserFocused ? "bg-ink text-on-ink" : "text-fg-2 hover:bg-surface-2 hover:text-fg"
               }`}
             >
               <Monitor className="size-3.5" />
@@ -209,8 +247,8 @@ export default function RunCard({
         </div>
       </header>
 
-      {expanded && hasActivity && (
-        <div className="border-t border-line px-2.5 py-2">
+      {showBody && (
+        <div ref={bodyRef} className="overflow-hidden border-t border-line px-2.5 py-2">
           {run.plan.length > 0 && <PlanList run={run} />}
           <ul className="space-y-0.5">
             {tools.map((item) =>

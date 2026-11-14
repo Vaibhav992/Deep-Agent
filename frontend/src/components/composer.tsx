@@ -51,7 +51,7 @@ export default function Composer({
   }
 
   return (
-    <div className="rounded-[14px] border border-line bg-surface-2 transition-colors focus-within:border-line-strong">
+    <div className="rounded-[18px] border border-line bg-canvas shadow-[0_1px_2px_rgb(23_23_28/0.04),0_8px_24px_rgb(23_23_28/0.05)] transition-colors focus-within:border-line-strong">
       <textarea
         ref={ref}
         value={value}
@@ -72,7 +72,7 @@ export default function Composer({
         }`}
       />
       <div className="flex items-center gap-2 px-2.5 pb-2.5 pt-2">
-        <div className="flex rounded-lg border border-line bg-surface-1 p-0.5" role="radiogroup" aria-label="Mode">
+        <div className="flex rounded-full bg-surface-2 p-0.5" role="radiogroup" aria-label="Mode">
           {MODES.map((m) => (
             <button
               key={m.value}
@@ -81,8 +81,8 @@ export default function Composer({
               aria-checked={mode === m.value}
               title={m.hint}
               onClick={() => setMode(m.value)}
-              className={`rounded-md px-2.5 py-1 text-[12px] leading-4 transition-colors ${
-                mode === m.value ? "bg-surface-3 text-fg" : "text-fg-3 hover:text-fg-2"
+              className={`rounded-full px-3 py-1 text-[12px] leading-4 transition-colors ${
+                mode === m.value ? "bg-canvas text-fg shadow-[0_1px_2px_rgb(23_23_28/0.08)]" : "text-fg-3 hover:text-fg-2"
               }`}
             >
               {m.label}
@@ -94,9 +94,10 @@ export default function Composer({
         </span>
         {running ? (
           <button
+            key="stop"
             type="button"
             onClick={onStop}
-            className="flex h-8 items-center gap-1.5 rounded-lg border border-line-strong bg-surface-3 px-3 text-[13px] text-fg transition-colors hover:border-danger hover:text-danger"
+            className="press swap-in flex h-8 items-center gap-1.5 rounded-full border border-line-strong bg-canvas px-3.5 text-[13px] text-fg hover:border-danger hover:text-danger"
             aria-label="Stop the agent"
           >
             <Square className="size-3 fill-current" />
@@ -104,10 +105,11 @@ export default function Composer({
           </button>
         ) : (
           <button
+            key="send"
             type="button"
             onClick={submit}
             disabled={!canSend}
-            className="flex size-8 items-center justify-center rounded-lg bg-signal text-signal-ink transition-opacity disabled:opacity-30"
+            className="press swap-in btn-ink size-8 justify-center disabled:opacity-25"
             aria-label="Send"
           >
             <ArrowUp className="size-4" strokeWidth={2.5} />

@@ -1,93 +1,202 @@
 "use client";
 
+import { useRef } from "react";
 import Link from "next/link";
 import { useAuth } from "@clerk/nextjs";
-import { ArrowRight, Globe, ListChecks, ShieldCheck } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Wordmark } from "@/components/ui";
+import HeroReplay from "@/components/landing/hero-replay";
+import FeatureStack from "@/components/landing/feature-stack";
+import MakerSection, { LinkedInIcon, MAKER, MakerAvatar } from "@/components/landing/maker";
+import { EASE_OUT, FULL_MOTION, SplitText, gsap, useGSAP } from "@/lib/gsap";
+import { APP_NAME, WORDMARK } from "@/lib/brand";
+import ThemeToggle from "@/components/theme-toggle";
 
-const CAPABILITIES = [
-  {
-    icon: ListChecks,
-    title: "Plans, then researches",
-    body: "Breaks a question into steps, searches the web for each one, and writes an answer from what it found.",
-  },
-  {
-    icon: Globe,
-    title: "Works in a real browser",
-    body: "Opens sites, clicks, types and reads pages. You watch every page it visits, screenshot by screenshot.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Guarded by default",
-    body: "Inputs and answers pass through safety checks, and the browser can't reach private or internal addresses.",
-  },
-];
+// What the agent actually runs on today; no invented customer logos.
+const STACK = ["DeepSeek", "BrowserBase", "Exa search", "LangGraph", "Neon Postgres", "Clerk"];
 
 export default function LandingPage() {
   const { isSignedIn } = useAuth();
   const cta = isSignedIn ? "/chat" : "/sign-up";
+  const root = useRef<HTMLDivElement>(null);
+
+  useGSAP(
+    () => {
+      const q = gsap.utils.selector(root);
+      const mm = gsap.matchMedia();
+      mm.add(FULL_MOTION, () => {
+        // Headline lines rise from behind a mask; autoSplit re-splits once the web font has loaded.
+        SplitText.create(q("[data-headline]"), {
+          type: "lines",
+          mask: "lines",
+          autoSplit: true,
+          onSplit: (self) => gsap.from(self.lines, { yPercent: 105, duration: 1, ease: "expo.out", stagger: 0.09 }),
+        });
+        gsap.from(q("[data-intro]"), { autoAlpha: 0, y: 10, duration: 0.7, ease: EASE_OUT, stagger: 0.08, delay: 0.35 });
+        gsap.from(q("[data-hero-media]"), { autoAlpha: 0, y: 28, duration: 1, ease: EASE_OUT, delay: 0.45 });
+        // The hero art drifts slightly slower than the page as you scroll past it.
+        gsap.to(q("[data-hero-field]"), {
+          yPercent: 8,
+          ease: "none",
+          scrollTrigger: { trigger: q("[data-hero-media]")[0], start: "top bottom", end: "bottom top", scrub: true },
+        });
+        gsap.from(q("[data-reveal-up]"), {
+          autoAlpha: 0,
+          y: 20,
+          duration: 0.8,
+          ease: EASE_OUT,
+          stagger: 0.1,
+          scrollTrigger: { trigger: q("[data-closing]")[0], start: "top 75%", once: true },
+        });
+      });
+      return () => mm.revert();
+    },
+    { scope: root },
+  );
 
   return (
-    <div className="min-h-dvh bg-canvas">
-      <header className="mx-auto flex h-16 max-w-[1080px] items-center justify-between px-6">
-        <Wordmark />
-        <nav className="flex items-center gap-2">
-          {!isSignedIn && (
-            <Link href="/sign-in" className="rounded-lg px-3 py-1.5 text-[13px] text-fg-2 transition-colors hover:text-fg">
-              Sign in
+    <div ref={root} className="min-h-dvh bg-canvas">
+      <header className="sticky top-0 z-30 border-b border-line bg-canvas/85 backdrop-blur-md">
+        <div className="mx-auto flex h-16 max-w-[1280px] items-center gap-8 px-6">
+          <Link href="/"><Wordmark /></Link>
+          <nav className="hidden items-center gap-7 text-[14px] text-fg-2 md:flex">
+            <a href="#product" className="transition-colors hover:text-fg">Product</a>
+            <a href="#how" className="transition-colors hover:text-fg">How it works</a>
+            <a href="#safety" className="transition-colors hover:text-fg">Safety</a>
+          </nav>
+          <div className="ml-auto flex items-center gap-2">
+            <ThemeToggle className="mr-1" />
+            {!isSignedIn && (
+              <Link href="/sign-in" className="px-3 py-2 text-[14px] text-fg-2 transition-colors hover:text-fg">
+                Sign in
+              </Link>
+            )}
+            <Link href={cta} className="btn-ink press px-4 py-2 text-[14px]">
+              {isSignedIn ? "Open workspace" : "Start a task"}
             </Link>
-          )}
-          <Link href={cta} className="rounded-lg bg-signal px-3 py-1.5 text-[13px] font-medium text-signal-ink">
-            {isSignedIn ? "Open app" : "Get started"}
-          </Link>
-        </nav>
+          </div>
+        </div>
       </header>
 
-      <main className="mx-auto max-w-[1080px] px-6">
-        <section className="relative pb-20 pt-24 sm:pt-32">
-          <div
-            className="pointer-events-none absolute -left-20 top-10 h-[420px] w-[560px] rounded-full opacity-70 blur-[100px]"
-            style={{ background: "radial-gradient(closest-side, #1e2a12, transparent)" }}
-            aria-hidden="true"
-          />
-          <div className="relative max-w-[640px]">
-            <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-line px-3 py-1 font-mono text-[12px] text-fg-2">
-              <span className="size-1.5 rounded-full bg-signal" />
-              research · browse · answer
+      <main>
+        {/* Hero */}
+        <section className="mx-auto max-w-[1280px] px-6 pb-10 pt-20 text-center sm:pt-28">
+          <p data-intro className="eyebrow text-fg-3">Research · Browse · Answer</p>
+          <h1
+            data-headline
+            className="font-display mx-auto mt-6 max-w-[980px] text-[46px] leading-[1.02] text-balance sm:text-[76px] lg:text-[96px]"
+          >
+            An agent you can watch work.
+          </h1>
+          <p data-intro className="mx-auto mt-7 max-w-[560px] text-[17px] leading-[27px] text-pretty text-fg-2">
+            Give {APP_NAME} a task. It plans, searches the web and works in a real browser, showing you every step, then
+            answers with sources you can check.
+          </p>
+          <div data-intro className="mt-9 flex flex-wrap items-center justify-center gap-3">
+            <Link href={cta} className="btn-ink press px-6 py-3 text-[15px]">
+              {isSignedIn ? "Open the workspace" : "Start a task"}
+              <ArrowRight className="size-4" />
+            </Link>
+            <a href="#how" className="btn-ghost press px-6 py-3 text-[15px]">
+              See how it works
+            </a>
+          </div>
+        </section>
+
+        <section id="product" className="mx-auto max-w-[1280px] px-4 sm:px-6">
+          <div data-hero-media className="relative overflow-hidden rounded-[24px]">
+            <div data-hero-field className="field-forest absolute -inset-y-[10%] inset-x-0" aria-hidden="true" />
+            <div className="grain pointer-events-none absolute inset-0 opacity-30" aria-hidden="true" />
+            <div className="relative px-3 pb-3 pt-10 sm:px-10 sm:pb-12 sm:pt-16 lg:px-20 lg:pt-20">
+              <HeroReplay />
+            </div>
+          </div>
+        </section>
+
+        {/* What it runs on */}
+        <section className="mx-auto max-w-[1280px] px-6 py-20 text-center">
+          <p className="text-[15px] text-fg-2">Built on infrastructure you already trust</p>
+          <ul className="mt-8 flex flex-wrap items-center justify-center gap-x-12 gap-y-4">
+            {STACK.map((s) => (
+              <li key={s} className="font-display text-[20px] tracking-[-0.03em] text-fg-3">{s}</li>
+            ))}
+          </ul>
+        </section>
+
+        {/* Capabilities: stacking panels */}
+        <section id="how" className="bg-cream py-24 sm:py-32">
+          <div className="mx-auto max-w-[1280px] px-4 sm:px-6">
+            <div className="mx-auto mb-14 max-w-[720px] text-center">
+              <p className="eyebrow text-fg-3">How it works</p>
+              <h2 className="mt-5 text-[34px] font-normal leading-[40px] tracking-[-0.02em] text-balance sm:text-[52px] sm:leading-[58px]">
+                Three things it does, all of them visible.
+              </h2>
+            </div>
+            <div id="safety">
+              <FeatureStack cta={cta} />
+            </div>
+          </div>
+        </section>
+
+        <MakerSection />
+
+        {/* Closing */}
+        <section data-closing className="relative overflow-hidden">
+          <div className="field-forest absolute inset-0" aria-hidden="true" />
+          <div className="grain pointer-events-none absolute inset-0 opacity-30" aria-hidden="true" />
+          <div className="relative mx-auto flex max-w-[1280px] flex-col items-center px-6 py-32 text-center text-white sm:py-44">
+            <h2 data-reveal-up className="font-display max-w-[760px] text-[44px] leading-[1.04] text-balance sm:text-[72px]">
+              Give it a task.
+            </h2>
+            <p data-reveal-up className="mt-6 max-w-[460px] text-[17px] leading-[27px] text-white/75">
+              Watch it plan, browse and answer, then check every source yourself.
             </p>
-            <h1 className="text-[40px] font-semibold leading-[1.08] tracking-[-0.03em] sm:text-[56px]">
-              An agent you can
-              <br />
-              watch work.
-            </h1>
-            <p className="mt-5 max-w-[520px] text-[16px] leading-[26px] text-fg-2">
-              Give Deep Agent a task. It plans, searches the web, operates a real browser, and shows you each step
-              as it happens, then gives you an answer you can check.
-            </p>
-            <div className="mt-8 flex items-center gap-3">
-              <Link href={cta} className="flex items-center gap-2 rounded-lg bg-signal px-4 py-2.5 text-[14px] font-medium text-signal-ink">
+            <div data-reveal-up className="mt-10">
+              <Link href={cta} className="btn-ink press !bg-white px-6 py-3 text-[15px] !text-[#17171c] hover:!bg-white/90">
                 {isSignedIn ? "Open the workspace" : "Start a task"}
                 <ArrowRight className="size-4" />
               </Link>
             </div>
           </div>
         </section>
-
-        <section className="grid gap-px overflow-hidden rounded-[14px] border border-line bg-line sm:grid-cols-3">
-          {CAPABILITIES.map((c) => (
-            <div key={c.title} className="bg-surface-1 p-6">
-              <c.icon className="size-5 text-fg-2" />
-              <h2 className="mt-4 text-[15px] font-medium">{c.title}</h2>
-              <p className="mt-1.5 text-[13px] leading-[21px] text-fg-2">{c.body}</p>
-            </div>
-          ))}
-        </section>
-
-        <footer className="flex items-center justify-between py-10 text-[12px] text-fg-3">
-          <span>Deep Agent</span>
-          <span className="font-mono">v0.1</span>
-        </footer>
       </main>
+
+      <footer className="bg-night text-white/60">
+        <div className="mx-auto flex max-w-[1280px] flex-col gap-10 px-6 py-14 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <span className="flex items-center gap-2 text-white">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <rect x="1" y="1" width="22" height="22" rx="7" fill="#e5f4ef" />
+                <path d="M7 8h10L10 17" stroke="var(--forest)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span className="font-display text-[17px] leading-none tracking-[-0.04em]">{WORDMARK}</span>
+            </span>
+            <p className="mt-4 max-w-[280px] text-[13px] leading-5">An agent that researches and browses for you, in plain sight.</p>
+          </div>
+          <nav className="grid grid-cols-2 gap-x-16 gap-y-2 text-[14px]">
+            <a href="#product" className="hover:text-white">Product</a>
+            <Link href="/sign-in" className="hover:text-white">Sign in</Link>
+            <a href="#how" className="hover:text-white">How it works</a>
+            <Link href={cta} className="hover:text-white">Start a task</Link>
+            <a href="#safety" className="hover:text-white">Safety</a>
+          </nav>
+        </div>
+        <div className="mx-auto flex max-w-[1280px] flex-col gap-4 border-t border-white/10 px-6 py-6 sm:flex-row sm:items-center sm:justify-between">
+          <a
+            href={MAKER.linkedin}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group flex items-center gap-3 text-[13px] transition-colors hover:text-white"
+          >
+            <MakerAvatar size={28} ring={false} />
+            <span>
+              Developed by <span className="text-white">{MAKER.name}</span>
+            </span>
+            <LinkedInIcon className="size-3.5 opacity-60 transition-opacity group-hover:opacity-100" />
+          </a>
+          <span className="font-mono text-[12px]">v0.1</span>
+        </div>
+      </footer>
     </div>
   );
 }

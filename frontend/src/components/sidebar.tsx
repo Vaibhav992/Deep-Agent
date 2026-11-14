@@ -10,6 +10,8 @@ import { useActiveRun } from "@/lib/runner";
 import { useChatStore } from "@/store/chat-store";
 import type { Session } from "@/lib/types";
 import { Logo, StatusDot, Wordmark, useClientNow } from "./ui";
+import { APP_NAME } from "@/lib/brand";
+import ThemeToggle from "./theme-toggle";
 
 function groupSessions(sessions: Session[], now: Date | null) {
   if (!now) return [];
@@ -70,7 +72,7 @@ export default function Sidebar({
   if (collapsed) {
     return (
       <nav className="flex h-full w-14 flex-col items-center gap-2 border-r border-line bg-surface-1 py-3" aria-label="Tasks">
-        <Link href="/chat" className="mb-2 rounded-md p-1" aria-label="Deep Agent home"><Logo /></Link>
+        <Link href="/chat" className="mb-2 rounded-md p-1" aria-label={`${APP_NAME} home`}><Logo /></Link>
         <button onClick={onToggle} className="rounded-md p-2 text-fg-3 transition-colors hover:bg-surface-2 hover:text-fg" aria-label="Expand sidebar">
           <PanelLeftOpen className="size-4" />
         </button>
@@ -78,6 +80,7 @@ export default function Sidebar({
           <Plus className="size-4" />
         </Link>
         <div className="mt-auto flex flex-col items-center gap-2">
+          <ThemeToggle />
           <Link href="/settings" className="rounded-md p-2 text-fg-3 transition-colors hover:bg-surface-2 hover:text-fg" aria-label="Settings">
             <Settings className="size-4" />
           </Link>
@@ -100,9 +103,9 @@ export default function Sidebar({
         <Link
           href="/chat"
           onClick={onNavigate}
-          className="flex h-9 items-center gap-2 rounded-lg border border-line bg-surface-2 px-3 text-[13px] text-fg transition-colors hover:border-line-strong"
+          className="press btn-ink h-9 px-4 text-[13px] transition-colors hover:border-line-strong"
         >
-          <Plus className="size-4 text-fg-2" />
+          <Plus className="size-4" />
           New task
         </Link>
         <label className="flex h-9 items-center gap-2 rounded-lg px-3 text-fg-3 focus-within:bg-surface-2">
@@ -132,7 +135,7 @@ export default function Sidebar({
         {deleteError && <p className="px-3 pt-2 text-[12px] text-danger" role="alert">{deleteError}</p>}
         {groups.map((g) => (
           <section key={g.label} className="pt-4">
-            <h3 className="px-3 pb-1 text-[11px] font-medium uppercase tracking-[0.06em] text-fg-3">{g.label}</h3>
+            <h3 className="eyebrow px-3 pb-1 text-fg-3">{g.label}</h3>
             <ul>
               {g.items.map((s) => {
                 const active = s.id === activeId;
@@ -179,6 +182,7 @@ export default function Sidebar({
 
       <div className="flex items-center gap-2 border-t border-line px-3 py-3">
         <UserButton />
+        <ThemeToggle className="ml-1" />
         <Link href="/settings" className="ml-auto flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[13px] text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg">
           <Settings className="size-4" />
           Settings

@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import type { RunStatus } from "@/lib/types";
+import { WORDMARK } from "@/lib/brand";
 
 const noopSubscribe = () => () => {};
 
@@ -21,17 +22,17 @@ function getNowMinute(): Date {
 export function Logo({ size = 22 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="1.5" y="1.5" width="21" height="21" rx="5" stroke="var(--signal)" strokeWidth="2" />
-      <path d="M7 7.5h10L9.5 17.5" stroke="var(--signal)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="1" y="1" width="22" height="22" rx="7" fill="var(--logo-bg)" />
+      <path d="M7 8h10L10 17" stroke="var(--logo-fg)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
 export function Wordmark() {
   return (
-    <span className="flex items-center gap-2.5">
+    <span className="flex items-center gap-2">
       <Logo />
-      <span className="text-[15px] font-medium tracking-[-0.01em]">Deep Agent</span>
+      <span className="font-display text-[17px] leading-none tracking-[-0.04em]">{WORDMARK}</span>
     </span>
   );
 }

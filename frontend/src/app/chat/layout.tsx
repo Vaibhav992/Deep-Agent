@@ -19,6 +19,14 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
   const setBrowserPanelOpen = useChatStore((s) => s.setBrowserPanelOpen);
   const hasBrowserTurn = useChatStore((s) => s.focusedTurnKey !== null);
 
+  // Keep the panel mounted after it's closed (from anywhere) until its exit animation ends.
+  const [panelMounted, setPanelMounted] = useState(browserPanelOpen);
+  if (browserPanelOpen && !panelMounted) setPanelMounted(true);
+  const panelExiting = panelMounted && !browserPanelOpen;
+  const onPanelAnimationEnd = (e: React.AnimationEvent) => {
+    if (e.target === e.currentTarget && panelExiting) setPanelMounted(false);
+  };
+
   useEffect(() => {
     if (!isLoaded || !isSignedIn) return;
     api.get<Session[]>(getToken, "/sessions?limit=100").then(setSessions).catch(() => setSessions([]));
@@ -36,8 +44,8 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
       {/* Mobile drawer */}
       {mobileNav && (
         <div className="fixed inset-0 z-50 md:hidden">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setMobileNav(false)} />
-          <div className="absolute inset-y-0 left-0 shadow-[0_12px_40px_rgb(0_0_0/0.45)]">
+          <div className="absolute inset-0 bg-black/35" onClick={() => setMobileNav(false)} />
+          <div className="absolute inset-y-0 left-0 shadow-[0_12px_40px_rgb(23_23_28/0.14)]">
             <Suspense fallback={null}>
               <Sidebar collapsed={false} onToggle={() => setMobileNav(false)} onNavigate={() => setMobileNav(false)} />
             </Suspense>
@@ -61,14 +69,23 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
       </main>
 
       {/* Browser panel: docked on wide screens, a sheet otherwise */}
-      {browserPanelOpen && (
+      {panelMounted && (
         <>
-          <div className="hidden w-[44%] min-w-[420px] max-w-[720px] border-l border-line xl:block">
+          <div
+            onAnimationEnd={onPanelAnimationEnd}
+            className={`hidden w-[44%] min-w-[420px] max-w-[720px] border-l border-line xl:block ${panelExiting ? "panel-out" : "panel-in"}`}
+          >
             <BrowserPanel onClose={() => setBrowserPanelOpen(false)} />
           </div>
-          <div className="fixed inset-0 z-40 xl:hidden">
-            <div className="absolute inset-0 bg-black/60" onClick={() => setBrowserPanelOpen(false)} />
-            <div className="absolute inset-y-0 right-0 w-full max-w-[560px] border-l border-line shadow-[0_12px_40px_rgb(0_0_0/0.45)]">
+          <div className={`fixed inset-0 z-40 xl:hidden ${panelExiting ? "pointer-events-none" : ""}`}>
+            <div
+              className={`absolute inset-0 bg-black/35 ${panelExiting ? "[animation:fade-out-only_220ms_ease_forwards]" : "[animation:fade-only_240ms_ease_backwards]"}`}
+              onClick={() => setBrowserPanelOpen(false)}
+            />
+            <div
+              onAnimationEnd={onPanelAnimationEnd}
+              className={`absolute inset-y-0 right-0 w-full max-w-[560px] border-l border-line shadow-[0_12px_40px_rgb(23_23_28/0.14)] ${panelExiting ? "panel-out" : "panel-in"}`}
+            >
               <BrowserPanel onClose={() => setBrowserPanelOpen(false)} />
             </div>
           </div>

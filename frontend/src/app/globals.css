@@ -1,24 +1,101 @@
 @import "tailwindcss";
 
-/* Design tokens: see docs/DESIGN_SYSTEM.md */
+/* Design tokens: see docs/DESIGN_SYSTEM.md. Light, warm, ink-on-paper; forest green is the only accent. */
 :root {
-  --canvas: #08090a;
-  --surface-1: #0e1011;
-  --surface-2: #141719;
-  --surface-3: #1c2023;
-  --line: rgb(255 255 255 / 0.07);
-  --line-strong: rgb(255 255 255 / 0.12);
-  --fg: #eceeea;
-  --fg-2: #a2a8a3;
-  --fg-3: #6b726d;
-  --signal: #c6f432;
-  --signal-ink: #0b0f02;
-  --signal-wash: rgb(198 244 50 / 0.1);
-  --danger: #ff6b5b;
-  --danger-wash: rgb(255 107 91 / 0.1);
-  --warn: #f2b84b;
-  --warn-wash: rgb(242 184 75 / 0.1);
+  --canvas: #ffffff;
+  --surface-1: #faf9f6;
+  --surface-2: #f3f2ee;
+  --surface-3: #e9e7e1;
+  --cream: #f0eee9;
+  --line: rgb(23 23 28 / 0.09);
+  --line-strong: rgb(23 23 28 / 0.17);
+  --fg: #17171c;
+  --fg-2: #55555e;
+  --fg-3: #85858d;
+  --ink: #17171c;
+  --ink-hover: #2a2a31;
+  /* Text/icons placed on an ink fill */
+  --on-ink: #ffffff;
+  /* Surfaces that stay dark in both themes (footer, the ink feature panel, overlay chips) */
+  --night: #141614;
+  --logo-bg: #13291f;
+  --logo-fg: #e5f4ef;
+  --forest: #13291f;
+  --forest-2: #355146;
+  --mint: #e5f4ef;
+  /* "Live" only: running dots, active steps, the live badge */
+  --signal: #16824f;
+  --signal-ink: #ffffff;
+  --signal-wash: rgb(22 130 79 / 0.09);
+  --danger: #c4372b;
+  --danger-wash: rgb(196 55 43 / 0.07);
+  --warn: #9a640b;
+  --warn-wash: rgb(154 100 11 / 0.08);
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* Motion: strong ease-out for responses, ease-in-out for on-screen moves, iOS drawer curve for panels */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  color-scheme: light;
+}
+
+/* Dark: warm charcoal paper, light-ink actions. Applied when chosen, or when the system prefers dark
+   and the user hasn't picked light. (Kept in sync by hand: same values in both blocks.) */
+:root[data-theme="dark"] {
+  --canvas: #111311;
+  --surface-1: #161816;
+  --surface-2: #1d201d;
+  --surface-3: #272a26;
+  --cream: #1a1d1a;
+  --line: rgb(236 235 230 / 0.09);
+  --line-strong: rgb(236 235 230 / 0.17);
+  --fg: #ecebe6;
+  --fg-2: #a9aaa3;
+  --fg-3: #7c7e77;
+  --ink: #ecebe6;
+  --ink-hover: #d6d5cf;
+  --on-ink: #141614;
+  --night: #0b0c0b;
+  --logo-bg: #cfe8dc;
+  --logo-fg: #13291f;
+  --mint: #1f3a2d;
+  --signal: #3fbf7f;
+  --signal-ink: #0b0c0b;
+  --signal-wash: rgb(63 191 127 / 0.12);
+  --danger: #f07a6c;
+  --danger-wash: rgb(240 122 108 / 0.1);
+  --warn: #e0b45a;
+  --warn-wash: rgb(224 180 90 / 0.1);
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --canvas: #111311;
+    --surface-1: #161816;
+    --surface-2: #1d201d;
+    --surface-3: #272a26;
+    --cream: #1a1d1a;
+    --line: rgb(236 235 230 / 0.09);
+    --line-strong: rgb(236 235 230 / 0.17);
+    --fg: #ecebe6;
+    --fg-2: #a9aaa3;
+    --fg-3: #7c7e77;
+    --ink: #ecebe6;
+    --ink-hover: #d6d5cf;
+    --on-ink: #141614;
+    --night: #0b0c0b;
+    --logo-bg: #cfe8dc;
+    --logo-fg: #13291f;
+    --mint: #1f3a2d;
+    --signal: #3fbf7f;
+    --signal-ink: #0b0c0b;
+    --signal-wash: rgb(63 191 127 / 0.12);
+    --danger: #f07a6c;
+    --danger-wash: rgb(240 122 108 / 0.1);
+    --warn: #e0b45a;
+    --warn-wash: rgb(224 180 90 / 0.1);
+    color-scheme: dark;
+  }
 }
 
 @theme inline {
@@ -38,8 +115,16 @@
   --color-danger-wash: var(--danger-wash);
   --color-warn: var(--warn);
   --color-warn-wash: var(--warn-wash);
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", monospace;
+  --color-cream: var(--cream);
+  --color-ink: var(--ink);
+  --color-on-ink: var(--on-ink);
+  --color-night: var(--night);
+  --color-forest: var(--forest);
+  --color-forest-2: var(--forest-2);
+  --color-mint: var(--mint);
+  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-type), ui-monospace, "SFMono-Regular", monospace;
+  --font-display: var(--font-type), ui-monospace, monospace;
 }
 
 html,
@@ -50,15 +135,16 @@ body {
   font-size: 14px;
   line-height: 22px;
   -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01", "cv11";
 }
 
 ::selection {
-  background: rgb(198 244 50 / 0.25);
+  background: var(--mint);
   color: var(--fg);
 }
 
 :focus-visible {
-  outline: 2px solid var(--signal);
+  outline: 2px solid var(--ink);
   outline-offset: 2px;
   border-radius: 6px;
 }
@@ -67,15 +153,51 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Typewriter display face for headlines; Swiss grotesk everywhere else. */
+.font-display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.035em;
+}
+
+/* Small uppercase mono labels above sections and panels */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Primary pill: ink on paper */
+.btn-ink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 9999px;
+  background: var(--ink);
+  color: var(--on-ink);
+}
+.btn-ink:hover { background: var(--ink-hover); }
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 9999px;
+  border: 1px solid var(--line-strong);
+  color: var(--fg);
+}
+.btn-ghost:hover { background: var(--surface-2); }
+
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgb(255 255 255 / 0.1) transparent;
+  scrollbar-color: var(--line-strong) transparent;
 }
 
 /* Live pulse: the only looping animation in the product */
 @keyframes live-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgb(198 244 50 / 0.45); }
-  60% { box-shadow: 0 0 0 5px rgb(198 244 50 / 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgb(22 130 79 / 0.4); }
+  60% { box-shadow: 0 0 0 5px rgb(22 130 79 / 0); }
 }
 .live-dot {
   animation: live-pulse 1.6s var(--ease) infinite;
@@ -99,8 +221,108 @@ body {
   animation: fade-up 180ms var(--ease) both;
 }
 
+/* Organic texture: fine film grain over layered "field" gradients (stands in for painted imagery) */
+.grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+}
+.field-forest {
+  background:
+    radial-gradient(60% 80% at 12% 20%, #3f6b4f 0%, transparent 60%),
+    radial-gradient(50% 70% at 85% 30%, #6f7f3c 0%, transparent 65%),
+    radial-gradient(70% 90% at 60% 110%, #c9b27a 0%, transparent 60%),
+    radial-gradient(45% 60% at 35% 75%, #1d3b2c 0%, transparent 70%),
+    #13291f;
+}
+.field-sand {
+  background:
+    radial-gradient(55% 70% at 15% 15%, #e9dcc0 0%, transparent 60%),
+    radial-gradient(50% 70% at 90% 20%, #c8d5b9 0%, transparent 65%),
+    radial-gradient(70% 90% at 55% 110%, #b9c7a6 0%, transparent 60%),
+    #efe9dc;
+}
+/* In dark mode the sand field becomes a deep olive so theme text on it stays readable. */
+:root[data-theme="dark"] .field-sand {
+  background:
+    radial-gradient(55% 70% at 15% 15%, #3a3a2a 0%, transparent 60%),
+    radial-gradient(50% 70% at 90% 20%, #2c3a2c 0%, transparent 65%),
+    radial-gradient(70% 90% at 55% 110%, #4a4430 0%, transparent 60%),
+    #1c1e17;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .field-sand {
+    background:
+      radial-gradient(55% 70% at 15% 15%, #3a3a2a 0%, transparent 60%),
+      radial-gradient(50% 70% at 90% 20%, #2c3a2c 0%, transparent 65%),
+      radial-gradient(70% 90% at 55% 110%, #4a4430 0%, transparent 60%),
+      #1c1e17;
+  }
+}
+
+/* Press feedback: the interface confirms it heard the click.
+   Never put a GSAP tween on a .press element: its CSS transition on opacity/transform fights GSAP
+   and can leave the element stuck at the tween's start. Animate a wrapper instead. */
+.press {
+  /* Also carries the colour fades: this unlayered rule wins over Tailwind's transition-* utilities. */
+  transition:
+    transform 160ms var(--ease-out),
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    opacity 120ms ease;
+}
+.press:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* A new browser screenshot settles in over the previous one; the blur bridges the two states */
+@keyframes frame-in {
+  from { opacity: 0; filter: blur(2px); }
+  to { opacity: 1; filter: blur(0); }
+}
+.frame-in {
+  animation: frame-in 220ms var(--ease-out) backwards;
+}
+
+/* Page-loading sweep over the live screenshot */
+@keyframes scan {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(100%); }
+}
+.scan-line {
+  animation: scan 1.4s linear infinite;
+}
+
+/* Browser panel: drawer curve in, quicker out */
+@keyframes panel-in {
+  from { opacity: 0; transform: translateX(24px); }
+}
+@keyframes panel-out {
+  to { opacity: 0; transform: translateX(24px); }
+}
+/* Entry animations fill backwards only, so they never pin opacity/transform after they finish. */
+.panel-in { animation: panel-in 400ms var(--ease-drawer) backwards; }
+.panel-out { animation: panel-out 220ms var(--ease-out) forwards; }
+
+/* Send ↔ Stop: one control morphing, not two swapping */
+@keyframes swap-in {
+  from { opacity: 0; filter: blur(2px); transform: scale(0.96); }
+}
+.swap-in {
+  animation: swap-in 180ms var(--ease-out) backwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .live-dot, .skeleton, .enter { animation: none; }
+  .live-dot, .skeleton, .enter, .scan-line { animation: none; }
+  .frame-in, .swap-in, .panel-in { animation-name: fade-only; }
+  .panel-out { animation-name: fade-out-only; }
+  .press:active:not(:disabled) { transform: none; }
+}
+@keyframes fade-only {
+  from { opacity: 0; }
+}
+@keyframes fade-out-only {
+  to { opacity: 0; }
 }
 
 /* Answer prose */
@@ -123,7 +345,7 @@ body {
 .prose-answer a {
   color: var(--fg);
   text-decoration: underline;
-  text-decoration-color: rgb(198 244 50 / 0.5);
+  text-decoration-color: rgb(22 130 79 / 0.45);
   text-underline-offset: 3px;
 }
 .prose-answer a:hover { text-decoration-color: var(--signal); }

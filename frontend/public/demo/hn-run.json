@@ -1,0 +1,29 @@
+{
+ "prompt": "Open https://news.ycombinator.com and summarise the top 5 stories with their links.",
+ "url": "https://news.ycombinator.com/",
+ "title": "Hacker News",
+ "actions": [
+  {
+   "action": "navigate",
+   "target": "https://news.ycombinator.com",
+   "url": "https://news.ycombinator.com/"
+  },
+  {
+   "action": "extract",
+   "target": "page text",
+   "url": "https://news.ycombinator.com/"
+  },
+  {
+   "action": "extract",
+   "target": "links",
+   "url": "https://news.ycombinator.com/"
+  }
+ ],
+ "durations_ms": [
+  10282,
+  2984,
+  2969
+ ],
+ "latency_ms": 27734.0,
+ "answer": "Here are the top 5 stories on Hacker News (front page, https://news.ycombinator.com), ranked as displayed:\n\n**1. Why get an expensive Pi when I have an old phone?** — 179 points, by casi (4 hours ago), 125 comments\n- Article: https://so.long.thanks.fish/why-pi-when-i-have-an-old-phone/\n- Discussion: https://news.ycombinator.com/item?id=50440709\n\n**2. Ggml v1.0.0** — 311 points, by cobychapple (10 hours ago), 51 comments\n- Article: https://github.com/ggml-org/ggml/releases/tag/v1.0.0\n- Discussion: https://news.ycombinator.com/item?id=50493062\n\n**3. Monkey Island: all 13 versions side by side** — 239 points, by maximilianburke (9 hours ago), 75 comments\n- Article: https://monkeyisland.pages.dev/\n- Discussion: https://news.ycombinator.com/item?id=50493904\n\n**4. Nvidia allegedly engineered scarcity by funding AI startups to buy its GPUs** — 747 points, by speckx (10 hours ago), 438 comments\n- Article: https://www.techpowerup.com/354814/nvidia-allegedly-engineered-scarcity-by-funding-ai-startups-to-buy-its-gpus\n- Discussion: https://news.ycombinator.com/item?id=50493251\n\n**5. Unsloth Qwen3.8-27B Quantizations – Dynamic v3.1 Update** — 186 points, by Retro_Dev (13 hours ago), 51 comments\n- Article: https://unsloth.ai/docs/models/qwen3.8\n- Discussion: https://news.ycombinator.com/item?id=50491980\n\nNote: these are the top five in HN's displayed order, which is score- and time-weighted rather than strictly by points — for example, the FAA ground-stop story further down the list has 1577 points but ranks 7th. All details above come from the front page snapshot at https://news.ycombinator.com."
+}

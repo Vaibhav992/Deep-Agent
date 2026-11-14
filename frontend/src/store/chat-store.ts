@@ -58,6 +58,7 @@ export const useChatStore = create<ChatState>((set) => ({
   interruptTurn: (key, status, message) =>
     set((s) => ({ turns: s.turns.map((t) => (t.key === key ? { ...t, run: interruptRun(t.run, status, message) } : t)) })),
 
-  focusBrowser: (key) => set({ focusedTurnKey: key, browserPanelOpen: key !== null }),
+  // Closing keeps the focused turn so the panel's content stays put during its exit animation.
+  focusBrowser: (key) => set(key === null ? { browserPanelOpen: false } : { focusedTurnKey: key, browserPanelOpen: true }),
   setBrowserPanelOpen: (open) => set({ browserPanelOpen: open }),
 }));

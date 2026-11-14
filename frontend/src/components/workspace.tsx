@@ -149,28 +149,26 @@ export default function Workspace({ sessionId }: { sessionId: string | null }) {
 
   if (turns.length === 0) {
     return (
-      <div className="relative flex flex-1 flex-col items-center justify-center overflow-y-auto px-4 py-10 sm:px-6">
-        <div
-          className="pointer-events-none absolute left-1/2 top-[18%] h-[380px] w-[620px] -translate-x-1/2 rounded-full opacity-60 blur-[90px]"
-          style={{ background: "radial-gradient(closest-side, #1e2a12, transparent)" }}
-          aria-hidden="true"
-        />
-        <div className="relative w-full max-w-[680px]">
-          <h1 className="text-[28px] font-semibold leading-[34px] tracking-[-0.02em]">{greeting(user?.firstName, now)}</h1>
-          <p className="mt-1.5 text-[15px] text-fg-2">What should the agent work on?</p>
-          <div className="mt-6">{composer(true)}</div>
-          <div className="mt-5 grid gap-2 sm:grid-cols-3">
+      <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-4 py-10 sm:px-6">
+        <div className="w-full max-w-[700px]">
+          <p className="eyebrow text-fg-3">New task</p>
+          <h1 className="font-display mt-3 text-[34px] leading-[40px] text-balance sm:text-[44px] sm:leading-[48px]">
+            {greeting(user?.firstName, now)}
+          </h1>
+          <p className="mt-3 text-[16px] text-fg-2">What should the agent work on?</p>
+          <div className="mt-8">{composer(true)}</div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-3">
             {STARTERS.map((s) => (
               <button
                 key={s.label}
                 onClick={() => setDraft({ key: Date.now(), text: s.prompt })}
-                className="group rounded-[10px] border border-line bg-surface-1 p-3 text-left transition-colors hover:border-line-strong hover:bg-surface-2"
+                className="press group rounded-[14px] bg-cream p-4 text-left hover:bg-surface-3"
               >
-                <span className="flex items-center gap-1.5 text-[12px] text-fg-3 group-hover:text-fg-2">
+                <span className="eyebrow flex items-center gap-1.5 text-fg-3 group-hover:text-fg-2">
                   <s.icon className="size-3.5" />
                   {s.label}
                 </span>
-                <span className="mt-1.5 line-clamp-2 block text-[13px] leading-5 text-fg-2 group-hover:text-fg">{s.prompt}</span>
+                <span className="mt-2 line-clamp-3 block text-[13px] leading-5 text-fg-2 group-hover:text-fg">{s.prompt}</span>
               </button>
             ))}
           </div>

@@ -6,6 +6,7 @@ import { useUser, UserProfile } from "@clerk/nextjs";
 import { ArrowLeft, Check } from "lucide-react";
 import { api } from "@/lib/api";
 import type { LLMModel } from "@/lib/types";
+import ThemeToggle from "@/components/theme-toggle";
 
 const MODEL_KEY = "deep-agent:model";
 const modelListeners = new Set<() => void>();
@@ -99,6 +100,17 @@ export default function SettingsPage() {
         </section>
 
         <section>
+          <h2 className="text-[14px] font-medium">Appearance</h2>
+          <div className="mt-4 flex items-center justify-between rounded-[14px] border border-line px-4 py-3">
+            <div>
+              <p className="text-[13px] text-fg">Dark mode</p>
+              <p className="text-[12px] text-fg-3">Follows your system until you choose. Saved on this device.</p>
+            </div>
+            <ThemeToggle />
+          </div>
+        </section>
+
+        <section>
           <h2 className="text-[14px] font-medium">Account</h2>
           <p className="mt-1 text-[13px] text-fg-2">Profile, email, password and connected accounts are managed by Clerk.</p>
           <button
@@ -130,8 +142,8 @@ function ModelRow({
         selected ? "bg-surface-2" : "hover:bg-surface-1"
       }`}
     >
-      <span className={`flex size-4 shrink-0 items-center justify-center rounded-full border ${selected ? "border-signal bg-signal" : "border-line-strong"}`}>
-        {selected && <Check className="size-2.5 text-signal-ink" strokeWidth={3} />}
+      <span className={`flex size-4 shrink-0 items-center justify-center rounded-full border ${selected ? "border-ink bg-ink" : "border-line-strong"}`}>
+        {selected && <Check className="size-2.5 text-on-ink" strokeWidth={3} />}
       </span>
       <span className="min-w-0">
         <span className="block text-[13px] text-fg">{name}</span>

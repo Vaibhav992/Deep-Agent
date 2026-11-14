@@ -17,9 +17,9 @@ function CopyButton({ text }: { text: string }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
       }}
-      className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] text-fg-3 transition-colors hover:bg-surface-2 hover:text-fg"
+      className="press flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] text-fg-3 hover:bg-surface-2 hover:text-fg"
     >
-      {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+      {copied ? <Check className="size-3.5 swap-in" /> : <Copy className="size-3.5" />}
       {copied ? "Copied" : "Copy"}
     </button>
   );
@@ -43,7 +43,7 @@ export default function TurnView({
   return (
     <article className="space-y-3">
       <div className="flex justify-end">
-        <p className="max-w-[85%] whitespace-pre-wrap rounded-[10px] bg-surface-2 px-3.5 py-2.5 text-[14px] leading-[22px] text-fg">
+        <p className="max-w-[85%] whitespace-pre-wrap rounded-[18px] rounded-br-md bg-cream px-4 py-2.5 text-[14px] leading-[22px] text-fg">
           {turn.prompt}
         </p>
       </div>
@@ -81,7 +81,7 @@ export default function TurnView({
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-danger" />
           <span className="flex-1 text-fg">{run.error}</span>
           {canRetry && (
-            <button onClick={() => onRetry(turn.prompt)} className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-fg-2 hover:bg-surface-3 hover:text-fg">
+            <button onClick={() => onRetry(turn.prompt)} className="press flex items-center gap-1.5 rounded-md px-2 py-0.5 text-fg-2 hover:bg-surface-3 hover:text-fg">
               <RotateCcw className="size-3.5" />
               Retry
             </button>
@@ -93,7 +93,7 @@ export default function TurnView({
         <div className="flex items-center gap-2 text-[13px] text-fg-3">
           <span>Stopped before finishing.</span>
           {canRetry && (
-            <button onClick={() => onRetry(turn.prompt)} className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-fg-2 hover:bg-surface-2 hover:text-fg">
+            <button onClick={() => onRetry(turn.prompt)} className="press flex items-center gap-1 rounded-md px-1.5 py-0.5 text-fg-2 hover:bg-surface-2 hover:text-fg">
               <RotateCcw className="size-3.5" />
               Run again
             </button>
