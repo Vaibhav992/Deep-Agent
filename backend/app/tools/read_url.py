@@ -7,6 +7,8 @@ import httpx
 import structlog
 from langchain_core.tools import tool
 
+from app.security.url_policy import UrlPolicyError, check_url
+
 logger = structlog.get_logger()
 
 _UNWANTED_TAGS = {"script", "style", "nav", "header", "footer", "aside", "iframe", "noscript"}
@@ -26,17 +28,26 @@ async def read_url(url: str) -> str:
     Returns:
         The extracted text content from the page.
     """
-    if not url.startswith(("http://", "https://")):
-        return "[Error] URL must start with http:// or https://"
-
     headers = {
         "User-Agent": "Mozilla/5.0 (compatible; DeepAgent/1.0; +https://deep-agent.app)",
         "Accept": "text/html,application/xhtml+xml",
     }
 
-    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, max_redirects=5) as client:
+    # Follow redirects by hand so every hop is checked against the URL policy.
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=False) as client:
         try:
-            response = await client.get(url, headers=headers)
+            for _ in range(6):
+                try:
+                    url = await check_url(url)
+                except UrlPolicyError as e:
+                    return f"[Blocked] {e}"
+                response = await client.get(url, headers=headers)
+                if response.is_redirect and response.headers.get("location"):
+                    url = str(response.url.join(response.headers["location"]))
+                    continue
+                break
+            else:
+                return f"[Error] Too many redirects fetching {url}"
             response.raise_for_status()
         except httpx.HTTPStatusError as e:
             return f"[Error] HTTP {e.response.status_code} fetching {url}"

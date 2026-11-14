@@ -1,185 +1,196 @@
-"""BrowserManager — singleton Playwright browser with crash recovery."""
+"""Per-run browser sessions: BrowserBase (cloud) with a local Playwright fallback.
+
+Every agent run gets its own BrowserSession, so pages, cookies and the element
+index never leak between users or concurrent runs. The session is closed when
+the browser agent node finishes, fails, or is cancelled.
+"""
 import asyncio
-import random
+import base64
+import time
 
+import httpx
 import structlog
-from playwright.async_api import (
-    async_playwright,
-    Browser,
-    BrowserContext,
-    Page,
-    Frame,
-    Playwright,
-)
+from playwright.async_api import Browser, BrowserContext, Page, Playwright, async_playwright
 
-from app.config import get_settings
+from app.agent.run_context import emit
 from app.browser.stealth import STEALTH_SCRIPT
+from app.config import get_settings
 
 logger = structlog.get_logger()
 
-_USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-]
-
-_VIEWPORTS = [
-    {"width": 1920, "height": 1080},
-    {"width": 1366, "height": 768},
-    {"width": 1440, "height": 900},
-    {"width": 1536, "height": 864},
-]
+_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+)
+VIEWPORT = {"width": 1280, "height": 800}
+_FRAME_QUALITY = 60
+_MIN_FRAME_INTERVAL_S = 0.4
 
 
-class BrowserManager:
-    """Singleton Playwright browser manager with anti-detection and crash recovery."""
-
-    _instance: "BrowserManager | None" = None
-
-    def __init__(self):
+class BrowserSession:
+    def __init__(self, run_id: str):
+        self.run_id = run_id
         self._playwright: Playwright | None = None
         self._browser: Browser | None = None
         self._context: BrowserContext | None = None
         self._pages: list[Page] = []
-        self._active_page_idx: int = 0
-        self._active_frame: Frame | None = None
-        self._last_mouse_x: float = 0
-        self._last_mouse_y: float = 0
-        self._last_dialog: dict | None = None
-        self._health_task: asyncio.Task | None = None
-        self._current_user_id: str | None = None
-
-    @classmethod
-    def get_instance(cls) -> "BrowserManager":
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
+        self._active_idx = 0
+        self._bb_session_id: str | None = None
+        self.provider: str | None = None
+        self.element_tree: list[dict] = []
+        self.last_mouse = (0.0, 0.0)
+        self.last_dialog: dict | None = None
+        self._last_frame_at = 0.0
+        self._lock = asyncio.Lock()
+        self._closed = False
 
     @property
     def page(self) -> Page | None:
-        if not self._pages:
-            return None
-        return self._pages[self._active_page_idx]
+        return self._pages[self._active_idx] if self._pages else None
 
     @property
-    def is_launched(self) -> bool:
+    def is_open(self) -> bool:
         return self._browser is not None and self._browser.is_connected()
 
-    async def launch(self, user_id: str, storage_state: dict | None = None):
-        """Launch browser with stealth and optional session restore."""
-        settings = get_settings()
-        self._current_user_id = user_id
-
-        self._playwright = await async_playwright().start()
-        self._browser = await self._playwright.chromium.launch(
-            headless=settings.BROWSER_HEADLESS,
-            slow_mo=settings.BROWSER_SLOW_MO,
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--no-sandbox",
-                "--disable-dev-shm-usage",
-            ],
-        )
-
-        context_opts = {
-            "user_agent": random.choice(_USER_AGENTS),
-            "viewport": random.choice(_VIEWPORTS),
-            "locale": "en-US",
-            "timezone_id": "America/New_York",
-        }
-        if storage_state:
-            context_opts["storage_state"] = storage_state
-
-        self._context = await self._browser.new_context(**context_opts)
-        await self._context.add_init_script(STEALTH_SCRIPT)
-
-        self._context.on("page", self._on_new_page)
-
-        page = await self._context.new_page()
-        page.on("dialog", self._on_dialog)
-        self._pages = [page]
-        self._active_page_idx = 0
-
-        self._health_task = asyncio.create_task(self._health_loop())
-        logger.info("browser_launched", user_id=user_id)
-
-    def _on_new_page(self, page: Page):
-        page.on("dialog", self._on_dialog)
-        self._pages.append(page)
-
-    async def _on_dialog(self, dialog):
-        self._last_dialog = {
-            "type": dialog.type,
-            "message": dialog.message,
-            "default_value": dialog.default_value,
-        }
-        await dialog.dismiss()
-
-    async def _health_loop(self):
-        """Periodic crash recovery check."""
-        while True:
-            await asyncio.sleep(30)
-            try:
-                if self._browser and not self._browser.is_connected():
-                    logger.warning("browser_disconnected")
-                    await self.launch(self._current_user_id)
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error("browser_health_check_failed", error=str(e))
-
-    async def get_storage_state(self) -> dict | None:
-        """Export cookies/localStorage for session persistence."""
-        if self._context:
-            return await self._context.storage_state()
+    @property
+    def live_url(self) -> str | None:
+        if self._bb_session_id:
+            return f"https://www.browserbase.com/sessions/{self._bb_session_id}"
         return None
 
-    async def new_tab(self, url: str | None = None) -> Page:
-        """Open a new tab, optionally navigating to a URL."""
-        if not self._context:
-            raise RuntimeError("Browser not launched")
-        page = await self._context.new_page()
-        if url:
-            await page.goto(url, wait_until="domcontentloaded", timeout=get_settings().BROWSER_TIMEOUT)
+    async def ensure_open(self) -> Page:
+        if self._closed:
+            raise RuntimeError("This run's browser session has ended.")
+        async with self._lock:
+            if not self.is_open:
+                await self._launch()
+        if self._closed:
+            # close() ran while we were launching (run cancelled): don't leave the new browser running.
+            await self.close()
+            raise RuntimeError("This run's browser session has ended.")
+        return self.page
+
+    async def _launch(self):
+        settings = get_settings()
+        self._playwright = await async_playwright().start()
+        if settings.BROWSERBASE_API_KEY:
+            await self._launch_browserbase(settings)
+        else:
+            await self._launch_local(settings)
+        emit("browser_session", {"status": "open", "provider": self.provider, "live_url": self.live_url})
+
+    async def _launch_browserbase(self, settings):
+        body = {"browserSettings": {"viewport": VIEWPORT}}
+        if settings.BROWSERBASE_PROJECT_ID:
+            body["projectId"] = settings.BROWSERBASE_PROJECT_ID
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                "https://api.browserbase.com/v1/sessions",
+                headers={"x-bb-api-key": settings.BROWSERBASE_API_KEY, "Content-Type": "application/json"},
+                json=body,
+            )
+            resp.raise_for_status()
+            self._bb_session_id = resp.json()["id"]
+
+        ws_url = f"wss://connect.browserbase.com?apiKey={settings.BROWSERBASE_API_KEY}&sessionId={self._bb_session_id}"
+        self._browser = await self._playwright.chromium.connect_over_cdp(ws_url)
+        self._context = self._browser.contexts[0] if self._browser.contexts else await self._browser.new_context(
+            user_agent=_USER_AGENT, viewport=VIEWPORT
+        )
+        page = self._context.pages[0] if self._context.pages else await self._context.new_page()
+        await page.set_viewport_size(VIEWPORT)
+        self._attach(page)
+        self._context.on("page", self._attach)
+        self.provider = "browserbase"
+        logger.info("browser_launched", provider="browserbase", run_id=self.run_id, bb_session=self._bb_session_id)
+
+    async def _launch_local(self, settings):
+        self._browser = await self._playwright.chromium.launch(
+            headless=settings.BROWSER_HEADLESS,
+            args=["--disable-blink-features=AutomationControlled", "--disable-dev-shm-usage"],
+        )
+        self._context = await self._browser.new_context(
+            user_agent=_USER_AGENT, viewport=VIEWPORT, locale="en-US",
+        )
+        await self._context.add_init_script(STEALTH_SCRIPT)
+        self._context.on("page", self._attach)
+        self._attach(await self._context.new_page())
+        self.provider = "local"
+        logger.info("browser_launched", provider="local", run_id=self.run_id)
+
+    def _attach(self, page: Page):
+        if page in self._pages:
+            return
+        page.on("dialog", self._on_dialog)
         self._pages.append(page)
-        self._active_page_idx = len(self._pages) - 1
-        return page
+        self._active_idx = len(self._pages) - 1
 
-    async def close_tab(self, idx: int | None = None):
-        """Close a tab by index (default: active tab)."""
-        idx = idx if idx is not None else self._active_page_idx
-        if 0 <= idx < len(self._pages):
-            await self._pages[idx].close()
-            self._pages.pop(idx)
-            self._active_page_idx = max(0, min(self._active_page_idx, len(self._pages) - 1))
+    async def _on_dialog(self, dialog):
+        self.last_dialog = {"type": dialog.type, "message": dialog.message}
+        await dialog.dismiss()
 
-    async def switch_tab(self, idx: int):
-        if 0 <= idx < len(self._pages):
-            self._active_page_idx = idx
-            await self._pages[idx].bring_to_front()
+    async def capture_frame(self, call_id: str | None, force: bool = False) -> None:
+        """Screenshot the active page and stream it to the client as a browser_frame."""
+        page = self.page
+        if page is None:
+            return
+        now = time.monotonic()
+        if not force and now - self._last_frame_at < _MIN_FRAME_INTERVAL_S:
+            return
+        try:
+            data = await page.screenshot(type="jpeg", quality=_FRAME_QUALITY, full_page=False, timeout=10_000)
+            title = await page.title()
+        except Exception as e:
+            logger.warning("browser_frame_failed", error=str(e), run_id=self.run_id)
+            return
+        self._last_frame_at = now
+        emit("browser_frame", {
+            "call_id": call_id,
+            "url": page.url,
+            "title": title,
+            "mime": "image/jpeg",
+            "data": base64.b64encode(data).decode(),
+            "width": VIEWPORT["width"],
+            "height": VIEWPORT["height"],
+            "ts": time.time(),
+        })
 
     async def close(self):
-        """Graceful shutdown."""
-        if self._health_task:
-            self._health_task.cancel()
-            try:
-                await self._health_task
-            except asyncio.CancelledError:
-                pass
-
-        if self._browser:
-            await self._browser.close()
-        if self._playwright:
-            await self._playwright.stop()
-
+        self._closed = True
+        try:
+            if self._browser:
+                await self._browser.close()
+        except Exception as e:
+            logger.warning("browser_close_failed", error=str(e), run_id=self.run_id)
+        try:
+            if self._playwright:
+                await self._playwright.stop()
+        except Exception as e:
+            logger.warning("playwright_stop_failed", error=str(e), run_id=self.run_id)
+        if self._bb_session_id:
+            await self._release_browserbase()
+        was_open = self._browser is not None
         self._browser = None
         self._context = None
         self._pages = []
-        logger.info("browser_closed")
+        self._playwright = None
+        if was_open:
+            emit("browser_session", {"status": "closed"})
+            logger.info("browser_closed", run_id=self.run_id)
 
-    @classmethod
-    async def shutdown(cls):
-        """Class-level shutdown for app lifecycle."""
-        if cls._instance:
-            await cls._instance.close()
-            cls._instance = None
+    async def _release_browserbase(self):
+        """Ask BrowserBase to end the session now instead of waiting for its idle timeout."""
+        settings = get_settings()
+        body = {"status": "REQUEST_RELEASE"}
+        if settings.BROWSERBASE_PROJECT_ID:
+            body["projectId"] = settings.BROWSERBASE_PROJECT_ID
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                await client.post(
+                    f"https://api.browserbase.com/v1/sessions/{self._bb_session_id}",
+                    headers={"x-bb-api-key": settings.BROWSERBASE_API_KEY, "Content-Type": "application/json"},
+                    json=body,
+                )
+        except Exception as e:
+            logger.warning("browserbase_release_failed", error=str(e), run_id=self.run_id)
+        self._bb_session_id = None

@@ -4,6 +4,7 @@ import structlog
 
 from langchain_core.messages import SystemMessage, AIMessage
 
+from app.agent.run_context import emit
 from app.agent.state import AgentState
 from app.agent.prompts.system import PLANNER_PROMPT
 from app.llm.factory import create_llm
@@ -30,6 +31,8 @@ async def planner_node(state: AgentState) -> dict:
 
     if not steps:
         steps = [plan_text]
+
+    emit("plan", {"steps": [{"index": i, "title": s, "status": "pending"} for i, s in enumerate(steps)]})
 
     elapsed = (time.monotonic() - start) * 1000
     logger.info("planner_complete", steps=len(steps), latency_ms=round(elapsed, 1))

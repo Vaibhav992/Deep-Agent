@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 import structlog
 
 from app.security.heuristic_guard import check_input as heuristic_check_input, check_output as heuristic_check_output
-from app.security.jev_guard import check_injection, check_toxicity, check_output_safety
+from app.security.jev_guard import check_input as jev_check_input, check_output_safety
 from app.security.llm_judge import check_high_risk
 
 logger = structlog.get_logger()
@@ -53,8 +53,8 @@ async def check_input(
         await _log_all(user_id, session_id, "input", checks, result)
         return result
 
-    # Layer 2a: Jev injection detection
-    j_inject = await check_injection(text)
+    # Layer 2: Jev injection + toxicity (one request)
+    j_inject, j_toxic = await jev_check_input(text)
     checks.append(("jev_injection", j_inject))
     if not j_inject["safe"]:
         result = GuardrailResult(
@@ -66,8 +66,6 @@ async def check_input(
         await _log_all(user_id, session_id, "input", checks, result)
         return result
 
-    # Layer 2b: Jev toxicity scoring
-    j_toxic = await check_toxicity(text)
     checks.append(("jev_toxicity", j_toxic))
     if not j_toxic["safe"]:
         result = GuardrailResult(

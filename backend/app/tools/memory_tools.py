@@ -8,6 +8,8 @@ import uuid
 import structlog
 from langchain_core.tools import tool
 
+from app.agent.run_context import current_run
+
 logger = structlog.get_logger()
 
 
@@ -30,8 +32,7 @@ async def search_memory(query: str) -> str:
     from app.memory.vector_search import hybrid_search
     from app.memory.long_term_memory import get_ltm_for_context
 
-    # Tool context: user_id is set by the researcher node
-    user_id = search_memory._user_id
+    user_id = current_run().user_id
     if not user_id:
         return "[Error] No user context available for memory search."
 
@@ -63,8 +64,6 @@ async def search_memory(query: str) -> str:
 
     return "\n\n".join(parts)
 
-# Runtime user_id injection point
-search_memory._user_id = None
 
 
 @tool
@@ -84,8 +83,8 @@ async def write_memory(content: str, category: str = "fact") -> str:
     from app.db.database import async_session
     from app.memory.long_term_memory import write_ltm
 
-    user_id = write_memory._user_id
-    session_id = write_memory._session_id
+    ctx = current_run()
+    user_id, session_id = ctx.user_id, ctx.session_id
     if not user_id:
         return "[Error] No user context available for writing memory."
 
@@ -105,6 +104,3 @@ async def write_memory(content: str, category: str = "fact") -> str:
     logger.info("memory_written_by_agent", category=category, content_len=len(content))
     return f"Memory saved: [{category}] {content}"
 
-# Runtime context injection points
-write_memory._user_id = None
-write_memory._session_id = None

@@ -14,6 +14,10 @@ from app.db.base import Base
 from app.auth.models import User
 from app.sessions.models import Session
 from app.chat.models import ChatMessage
+from app.db.models import (  # noqa: F401
+    WorkingMemory, WorkingMemoryArchive, LongTermMemory,
+    DocumentEmbedding, GuardrailLog,
+)
 
 target_metadata = Base.metadata
 

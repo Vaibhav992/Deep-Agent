@@ -19,6 +19,7 @@ class AgentState(TypedDict):
     session_id: str
 
     # --- Routing ---
+    mode: str  # auto | research | browse | quick
     next_node: str
     from_node: str
 

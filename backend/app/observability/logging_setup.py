@@ -26,10 +26,9 @@ def setup_logging():
         cache_logger_on_first_use=True,
     )
 
-    log_level = logging.INFO if settings.is_production else logging.DEBUG
-    logging.basicConfig(format="%(message)s", level=log_level)
+    logging.basicConfig(format="%(message)s", level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO))
 
-    # Quiet noisy libraries
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    # Quiet noisy libraries. sse_starlette at DEBUG logs every chunk, including base64 screenshots.
+    for noisy in ("httpx", "httpcore", "openai", "sse_starlette", "langfuse", "urllib3", "asyncio"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
     logging.getLogger("aiokafka").setLevel(logging.INFO)

@@ -1,0 +1,170 @@
+@import "tailwindcss";
+
+/* Design tokens: see docs/DESIGN_SYSTEM.md */
+:root {
+  --canvas: #08090a;
+  --surface-1: #0e1011;
+  --surface-2: #141719;
+  --surface-3: #1c2023;
+  --line: rgb(255 255 255 / 0.07);
+  --line-strong: rgb(255 255 255 / 0.12);
+  --fg: #eceeea;
+  --fg-2: #a2a8a3;
+  --fg-3: #6b726d;
+  --signal: #c6f432;
+  --signal-ink: #0b0f02;
+  --signal-wash: rgb(198 244 50 / 0.1);
+  --danger: #ff6b5b;
+  --danger-wash: rgb(255 107 91 / 0.1);
+  --warn: #f2b84b;
+  --warn-wash: rgb(242 184 75 / 0.1);
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-fg-2: var(--fg-2);
+  --color-fg-3: var(--fg-3);
+  --color-signal: var(--signal);
+  --color-signal-ink: var(--signal-ink);
+  --color-signal-wash: var(--signal-wash);
+  --color-danger: var(--danger);
+  --color-danger-wash: var(--danger-wash);
+  --color-warn: var(--warn);
+  --color-warn-wash: var(--warn-wash);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", monospace;
+}
+
+html,
+body {
+  background: var(--canvas);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 22px;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgb(198 244 50 / 0.25);
+  color: var(--fg);
+}
+
+:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.1) transparent;
+}
+
+/* Live pulse: the only looping animation in the product */
+@keyframes live-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(198 244 50 / 0.45); }
+  60% { box-shadow: 0 0 0 5px rgb(198 244 50 / 0); }
+}
+.live-dot {
+  animation: live-pulse 1.6s var(--ease) infinite;
+}
+
+@keyframes shimmer {
+  from { background-position: -200px 0; }
+  to { background-position: 200px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2), var(--surface-3), var(--surface-2));
+  background-size: 400px 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.enter {
+  animation: fade-up 180ms var(--ease) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-dot, .skeleton, .enter { animation: none; }
+}
+
+/* Answer prose */
+.prose-answer {
+  font-size: 15px;
+  line-height: 26px;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+.prose-answer > * + * { margin-top: 12px; }
+.prose-answer h1, .prose-answer h2, .prose-answer h3 {
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  margin-top: 24px;
+}
+.prose-answer h1 { font-size: 20px; line-height: 28px; }
+.prose-answer h2 { font-size: 17px; line-height: 26px; }
+.prose-answer h3 { font-size: 15px; line-height: 24px; color: var(--fg-2); }
+.prose-answer strong { font-weight: 600; }
+.prose-answer a {
+  color: var(--fg);
+  text-decoration: underline;
+  text-decoration-color: rgb(198 244 50 / 0.5);
+  text-underline-offset: 3px;
+}
+.prose-answer a:hover { text-decoration-color: var(--signal); }
+.prose-answer ul, .prose-answer ol { padding-left: 20px; }
+.prose-answer ul { list-style: disc; }
+.prose-answer ol { list-style: decimal; }
+.prose-answer li + li { margin-top: 4px; }
+.prose-answer li::marker { color: var(--fg-3); }
+.prose-answer code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+.prose-answer pre {
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 16px;
+  overflow-x: auto;
+}
+.prose-answer pre code { background: none; border: 0; padding: 0; }
+.prose-answer blockquote {
+  border-left: 2px solid var(--line-strong);
+  padding-left: 14px;
+  color: var(--fg-2);
+}
+.prose-answer table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  display: block;
+  overflow-x: auto;
+}
+.prose-answer th, .prose-answer td {
+  border-bottom: 1px solid var(--line);
+  padding: 8px 12px 8px 0;
+  text-align: left;
+  vertical-align: top;
+}
+.prose-answer th { color: var(--fg-2); font-weight: 500; }
+.prose-answer hr { border: 0; border-top: 1px solid var(--line); }

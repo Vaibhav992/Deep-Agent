@@ -1,13 +1,6 @@
-import pytest
-import asyncio
 from unittest.mock import AsyncMock
 
-
-@pytest.fixture(scope="session")
-def event_loop():
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
+import pytest
 
 
 @pytest.fixture

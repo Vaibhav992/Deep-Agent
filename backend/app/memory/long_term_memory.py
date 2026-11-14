@@ -20,11 +20,11 @@ VALID_CATEGORIES = {"fact", "preference", "rule", "skill"}
 
 async def write_ltm(
     db: AsyncSession,
-    user_id: uuid.UUID,
+    user_id: str,
     category: str,
     content: str,
     importance: str = "medium",
-    session_id: uuid.UUID | None = None,
+    session_id: str | None = None,
 ) -> uuid.UUID:
     """Write a new long-term memory entry."""
     if category not in VALID_CATEGORIES:
@@ -46,7 +46,7 @@ async def write_ltm(
 
 async def get_ltm_for_context(
     db: AsyncSession,
-    user_id: uuid.UUID,
+    user_id: str,
     categories: list[str] | None = None,
     limit: int = 20,
 ) -> list[dict]:

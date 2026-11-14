@@ -1,6 +1,7 @@
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.chat.models import ChatMessage
 from app.sessions.models import Session
 from app.sessions.schemas import SessionCreate, SessionUpdate
 from app.utils.id_generator import generate_id
@@ -43,6 +44,17 @@ async def get_session(
         )
     )
     return result.scalar_one_or_none()
+
+
+async def list_messages(db: AsyncSession, session_id: str, limit: int = 200) -> list[ChatMessage]:
+    """Most recent `limit` messages of a session, oldest first."""
+    result = await db.execute(
+        select(ChatMessage)
+        .where(ChatMessage.session_id == session_id)
+        .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
+        .limit(limit)
+    )
+    return list(reversed(result.scalars().all()))
 
 
 async def update_session(

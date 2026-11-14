@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     APP_PORT: int = 8000
     APP_SECRET_KEY: str = "change-me-in-production"
+    LOG_LEVEL: str = "INFO"
     CORS_ORIGINS: list[str] = ["http://localhost:3001", "http://localhost:5173"]
 
     # Database (Neon Postgres — cloud-hosted, no local postgres needed)
@@ -23,7 +24,7 @@ class Settings(BaseSettings):
     # Auth (Clerk)
     CLERK_SECRET_KEY: str = ""
     CLERK_PUBLISHABLE_KEY: str = ""
-    CLERK_JWKS_URL: str = "https://api.clerk.com/v1/jwks"
+    CLERK_JWKS_URL: str = ""
 
     # AI Guardrails (Jev via typesafe-sdk — SDK reads TYPESAFE_API_KEY from env)
     TYPESAFE_API_KEY: str = ""
@@ -37,10 +38,11 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str = ""
 
     # Default LLM routing
-    LLM_DEFAULT_PROVIDER: str = "gemini"
-    LLM_DEFAULT_MODEL: str = "gemini-2.5-flash"
-    LLM_REASONING_MODEL: str = "gemini-2.5-pro"
-    LLM_FAST_MODEL: str = "gemini-2.5-flash"
+    LLM_DEFAULT_PROVIDER: str = "deepseek"
+    LLM_DEFAULT_MODEL: str = "deepseek-chat"
+    LLM_REASONING_MODEL: str = "deepseek-reasoner"
+    LLM_AGENT_MODEL: str = "deepseek-chat"
+    LLM_FAST_MODEL: str = "deepseek-chat"
     LLM_CODING_MODEL: str = "deepseek-chat"
 
     # Embeddings & Re-ranking (Cohere)
@@ -61,7 +63,9 @@ class Settings(BaseSettings):
     # Celery (periodic jobs only — uses Redis as broker)
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"
 
-    # Browser
+    # Browser (BrowserBase cloud)
+    BROWSERBASE_API_KEY: str = ""
+    BROWSERBASE_PROJECT_ID: str = ""
     BROWSER_HEADLESS: bool = True
     BROWSER_SLOW_MO: int = 50
     BROWSER_TIMEOUT: int = 30000
@@ -76,6 +80,11 @@ class Settings(BaseSettings):
             self.DATABASE_URL = self.DATABASE_URL.replace(
                 "postgresql://", "postgresql+asyncpg://", 1
             )
+        # asyncpg uses 'ssl' not 'sslmode'
+        self.DATABASE_URL = self.DATABASE_URL.replace("sslmode=", "ssl=")
+        # asyncpg doesn't accept channel_binding as URL param
+        import re
+        self.DATABASE_URL = re.sub(r"[&?]channel_binding=[^&]*", "", self.DATABASE_URL)
         return self
 
     @property

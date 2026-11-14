@@ -96,14 +96,18 @@ MODELS: dict[str, ModelInfo] = {
 }
 
 
-# Purpose → default model mappings (user can override per-session or per-request)
-PURPOSE_DEFAULTS: dict[str, str] = {
-    "reasoning": "gemini-2.5-pro",
-    "fast": "gemini-2.5-flash",
-    "coding": "deepseek-chat",
-    "vision": "gemini-2.5-pro",
-    "fallback": "openrouter/meta-llama/llama-4-maverick",
-}
+def _purpose_defaults() -> dict[str, str]:
+    """Purpose → model key. `agent` drives tool loops, where speed per round matters most."""
+    from app.config import get_settings
+    s = get_settings()
+    return {
+        "reasoning": s.LLM_REASONING_MODEL,
+        "agent": s.LLM_AGENT_MODEL,
+        "fast": s.LLM_FAST_MODEL,
+        "coding": s.LLM_CODING_MODEL,
+        "vision": "gemini-2.5-pro",
+        "fallback": "openrouter/meta-llama/llama-4-maverick",
+    }
 
 
 def resolve_model(model_name: str | None, purpose: str = "fast") -> ModelInfo:
@@ -117,5 +121,5 @@ def resolve_model(model_name: str | None, purpose: str = "fast") -> ModelInfo:
     if model_name and model_name in MODELS:
         return MODELS[model_name]
 
-    default_key = PURPOSE_DEFAULTS.get(purpose, "gemini-2.5-flash")
-    return MODELS.get(default_key, MODELS["gemini-2.5-flash"])
+    default_key = _purpose_defaults().get(purpose, "deepseek-chat")
+    return MODELS.get(default_key, MODELS["deepseek-chat"])

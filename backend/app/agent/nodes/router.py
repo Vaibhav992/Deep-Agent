@@ -10,10 +10,17 @@ from app.llm.factory import create_llm
 
 logger = structlog.get_logger()
 
+_FORCED_MODES = {"research": "planner", "browse": "browser_agent", "quick": "direct_answer"}
+
 
 async def router_node(state: AgentState) -> dict:
     """Classify the user's intent: research or direct answer."""
     start = time.monotonic()
+
+    forced = _FORCED_MODES.get(state.get("mode") or "auto")
+    if forced:
+        logger.info("router_decision", decision=forced, forced=True)
+        return {"next_node": forced, "from_node": "router"}
 
     last_message = state["messages"][-1]
     user_text = last_message.content if hasattr(last_message, "content") else str(last_message)

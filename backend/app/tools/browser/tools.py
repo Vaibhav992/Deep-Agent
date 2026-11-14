@@ -1,325 +1,257 @@
-"""Browser tools — LangChain tools for browser automation.
+"""Browser tools for the browser agent.
 
-Each tool operates on the BrowserManager singleton's active page.
-The agent references elements by index from the accessibility tree.
+Each tool acts on the current run's BrowserSession and reports what it did as a
+live `browser_action` event followed by a real screenshot (`browser_frame`).
+Elements are referenced by index from the most recent page snapshot.
 """
-import base64
+import time
 
 import structlog
-from langchain_core.tools import tool, BaseTool
+from langchain_core.tools import BaseTool, tool
 from playwright.async_api import Page
 
-from app.browser.manager import BrowserManager
-from app.browser.human_behavior import human_mouse_move, human_type, human_scroll, random_pause
+from app.agent.run_context import current_run, emit
+from app.agent.tooling import current_call_id
 from app.browser.accessibility import build_accessibility_tree, format_tree_for_agent
+from app.browser.human_behavior import human_mouse_move, human_scroll, human_type, random_pause
+from app.browser.manager import BrowserSession
 from app.config import get_settings
+from app.security.url_policy import UrlPolicyError, check_url
 
 logger = structlog.get_logger()
 
-_cached_tree: list[dict] = []
+
+def _session() -> BrowserSession:
+    ctx = current_run()
+    if ctx.browser is None:
+        ctx.browser = BrowserSession(ctx.run_id)
+    return ctx.browser
 
 
-def _get_page() -> Page:
-    bm = BrowserManager.get_instance()
-    if not bm.is_launched or bm.page is None:
-        raise RuntimeError("Browser not launched. Use browser_navigate first.")
-    return bm.page
+async def _open_page() -> Page:
+    session = _session()
+    if not session.is_open or session.page is None:
+        raise RuntimeError("No page is open yet. Call browser_navigate with a URL first.")
+    return session.page
+
+
+async def _report(action: str, *, target: str | None = None, value: str | None = None,
+                  ok: bool = True, error: str | None = None) -> None:
+    session = _session()
+    page = session.page
+    url, title = (page.url, await page.title()) if page else ("", "")
+    current_run().browser_actions += 1
+    call_id = current_call_id.get()
+    emit("browser_action", {
+        "call_id": call_id,
+        "action": action,
+        "target": target,
+        "value": value,
+        "url": url,
+        "title": title,
+        "ok": ok,
+        "error": error,
+        "ts": time.time(),
+    })
+    if page is not None:
+        await session.capture_frame(call_id, force=True)
+
+
+async def _snapshot(page: Page) -> str:
+    session = _session()
+    session.element_tree = await build_accessibility_tree(page)
+    return format_tree_for_agent(session.element_tree)
+
+
+def _element(index: int) -> dict:
+    tree = _session().element_tree
+    if index < 0 or index >= len(tree):
+        raise ValueError(f"Element [{index}] does not exist on the current snapshot. Call browser_get_page_info.")
+    return tree[index]
+
+
+async def _scroll_into_view(page: Page, el: dict) -> tuple[float, float]:
+    """Return viewport coordinates for `el`, scrolling it into view first if needed."""
+    if el.get("in_viewport"):
+        return el["x"], el["y"]
+    await page.evaluate("([x, y]) => window.scrollTo(x - innerWidth / 2, y - innerHeight / 2)",
+                        [el["page_x"], el["page_y"]])
+    await random_pause(150, 300)
+    pos = await page.evaluate("([x, y]) => [x - scrollX, y - scrollY]", [el["page_x"], el["page_y"]])
+    return pos[0], pos[1]
 
 
 @tool
 async def browser_navigate(url: str) -> str:
-    """Navigate the browser to a URL and return the page structure.
-
-    Use this to open a website. After navigation, you'll get the
-    accessibility tree showing all interactive elements on the page.
+    """Open a URL in the browser and return a numbered snapshot of the page.
 
     Args:
-        url: The full URL to navigate to.
-
-    Returns:
-        The page's accessibility tree showing clickable elements.
+        url: Full http(s) URL to open.
     """
-    global _cached_tree
-    bm = BrowserManager.get_instance()
+    try:
+        safe_url = await check_url(url)
+    except UrlPolicyError as e:
+        await _report("navigate", target=url, ok=False, error=str(e))
+        return f"[Blocked] {e}"
 
-    if not bm.is_launched:
-        await bm.launch(user_id="agent")
+    session = _session()
+    page = await session.ensure_open()
+    try:
+        await page.goto(safe_url, wait_until="domcontentloaded", timeout=get_settings().BROWSER_TIMEOUT)
+        try:
+            await page.wait_for_load_state("networkidle", timeout=5_000)
+        except Exception:
+            pass
+    except Exception as e:
+        await _report("navigate", target=safe_url, ok=False, error=str(e)[:200])
+        return f"[Error] Could not load {safe_url}: {e}"
 
-    page = bm.page
-    settings = get_settings()
-
-    await page.goto(url, wait_until="domcontentloaded", timeout=settings.BROWSER_TIMEOUT)
-    await random_pause(500, 1500)
-
-    _cached_tree = await build_accessibility_tree(page)
-    tree_text = format_tree_for_agent(_cached_tree)
-
-    logger.info("browser_navigated", url=url, elements=len(_cached_tree))
-    return f"Navigated to: {page.url}\n\n{tree_text}"
+    tree = await _snapshot(page)
+    await _report("navigate", target=safe_url)
+    return f"URL: {page.url}\nTitle: {await page.title()}\n\n{tree}"
 
 
 @tool
 async def browser_click(element_index: int) -> str:
-    """Click an element on the page by its index number.
-
-    Use the index from the accessibility tree (shown after navigation
-    or get_page_info). Elements marked with * are interactive.
+    """Click an element by its [index] from the latest page snapshot.
 
     Args:
-        element_index: The [index] number of the element to click.
-
-    Returns:
-        Result of the click and updated page structure.
+        element_index: The [index] of the element to click.
     """
-    global _cached_tree
-    page = _get_page()
-
-    if element_index < 0 or element_index >= len(_cached_tree):
-        return f"[Error] Invalid element index {element_index}. Use get_page_info to see available elements."
-
-    el = _cached_tree[element_index]
-
-    # Move mouse naturally, then click
-    bm = BrowserManager.get_instance()
-    await human_mouse_move(page, el["x"], el["y"], bm._last_mouse_x, bm._last_mouse_y)
-    bm._last_mouse_x = el["x"]
-    bm._last_mouse_y = el["y"]
-
-    await page.mouse.click(el["x"], el["y"])
-    await random_pause(300, 800)
-
-    # Refresh tree after click (page may have changed)
-    _cached_tree = await build_accessibility_tree(page)
-    tree_text = format_tree_for_agent(_cached_tree)
-
-    logger.info("browser_clicked", element=el["name"][:50], role=el["role"])
-    return f"Clicked: [{el['role']}] {el['name'][:80]}\n\nCurrent page: {page.url}\n\n{tree_text}"
+    page = await _open_page()
+    el = _element(element_index)
+    x, y = await _scroll_into_view(page, el)
+    session = _session()
+    await human_mouse_move(page, x, y, *session.last_mouse)
+    session.last_mouse = (x, y)
+    await page.mouse.click(x, y)
+    await random_pause(300, 700)
+    try:
+        await page.wait_for_load_state("domcontentloaded", timeout=5_000)
+    except Exception:
+        pass
+    tree = await _snapshot(page)
+    await _report("click", target=f"{el['role']}: {el['name'][:60]}")
+    return f"Clicked [{element_index}] {el['role']}: {el['name'][:80]}\nURL: {page.url}\n\n{tree}"
 
 
 @tool
-async def browser_type(element_index: int, text: str) -> str:
-    """Type text into an input field.
-
-    First clicks the element to focus it, then types with human-like timing.
+async def browser_type(element_index: int, text: str, press_enter: bool = False) -> str:
+    """Type text into an input by its [index], replacing what is there.
 
     Args:
-        element_index: The [index] of the input/textarea to type into.
-        text: The text to type.
-
-    Returns:
-        Confirmation of what was typed.
+        element_index: The [index] of the input or textarea.
+        text: Text to type.
+        press_enter: Press Enter afterwards (for example to submit a search).
     """
-    page = _get_page()
-
-    if element_index < 0 or element_index >= len(_cached_tree):
-        return f"[Error] Invalid element index {element_index}."
-
-    el = _cached_tree[element_index]
-
-    # Click to focus
-    await page.mouse.click(el["x"], el["y"])
-    await random_pause(100, 300)
-
-    # Clear existing content
+    page = await _open_page()
+    el = _element(element_index)
+    x, y = await _scroll_into_view(page, el)
+    await page.mouse.click(x, y)
     await page.keyboard.press("Control+a")
     await page.keyboard.press("Backspace")
-
-    # Type with human-like behavior
-    await human_type(page, text)
-
-    logger.info("browser_typed", element=el["name"][:50], text_len=len(text))
-    return f"Typed '{text}' into [{el['role']}] {el['name'][:80]}"
-
-
-@tool
-async def browser_screenshot() -> str:
-    """Take a screenshot of the current page.
-
-    Returns a base64-encoded PNG screenshot. Use this when you need
-    to visually inspect the page or verify an action worked.
-
-    Returns:
-        Base64-encoded screenshot data.
-    """
-    page = _get_page()
-    screenshot_bytes = await page.screenshot(type="png", full_page=False)
-    b64 = base64.b64encode(screenshot_bytes).decode()
-    logger.info("browser_screenshot", url=page.url)
-    return f"Screenshot captured ({len(screenshot_bytes)} bytes). URL: {page.url}"
+    await human_type(page, text, speed="fast")
+    if press_enter:
+        await page.keyboard.press("Enter")
+        try:
+            await page.wait_for_load_state("domcontentloaded", timeout=8_000)
+        except Exception:
+            pass
+    tree = await _snapshot(page)
+    await _report("type", target=f"{el['role']}: {el['name'][:60]}", value=text[:80])
+    return f"Typed into [{element_index}] {el['name'][:60]}{' and pressed Enter' if press_enter else ''}.\nURL: {page.url}\n\n{tree}"
 
 
 @tool
 async def browser_get_text() -> str:
-    """Extract the visible text content from the current page.
-
-    Returns the main text content, stripping navigation and UI elements.
-    Useful for reading articles, documentation, or any text-heavy page.
-
-    Returns:
-        The page's main text content.
-    """
-    page = _get_page()
+    """Return the readable text of the current page (up to 8000 characters)."""
+    page = await _open_page()
     text = await page.evaluate("""() => {
-        const main = document.querySelector('article')
-            || document.querySelector('main')
-            || document.querySelector('[role=main]')
-            || document.body;
-
-        // Remove noise
-        const clone = main.cloneNode(true);
-        clone.querySelectorAll('script, style, nav, header, footer, aside').forEach(el => el.remove());
-
-        return clone.innerText.trim().substring(0, 8000);
+        const root = document.querySelector('main, article, [role=main]') || document.body;
+        const clone = root.cloneNode(true);
+        clone.querySelectorAll('script, style, noscript, svg').forEach(el => el.remove());
+        return (clone.innerText || '').replace(/\\n{3,}/g, '\\n\\n').trim().substring(0, 8000);
     }""")
-
-    logger.info("browser_get_text", url=page.url, text_len=len(text))
-    return f"**Page:** {page.url}\n\n{text}"
+    await _report("extract", target="page text")
+    return f"URL: {page.url}\nTitle: {await page.title()}\n\n{text or '(no visible text)'}"
 
 
 @tool
 async def browser_scroll(direction: str = "down", amount: int = 3) -> str:
-    """Scroll the page up or down.
+    """Scroll the page and return the refreshed snapshot.
 
     Args:
-        direction: 'up' or 'down' (default: 'down').
-        amount: Number of scroll ticks (1-10, default: 3).
-
-    Returns:
-        Confirmation and updated element count.
+        direction: 'up' or 'down'.
+        amount: Scroll ticks, 1-10.
     """
-    global _cached_tree
-    page = _get_page()
+    page = await _open_page()
+    direction = "up" if direction == "up" else "down"
     amount = max(1, min(10, amount))
-
     await human_scroll(page, direction, amount)
-    await random_pause(200, 500)
+    await random_pause(200, 400)
+    tree = await _snapshot(page)
+    await _report("scroll", target=direction)
+    return f"Scrolled {direction}.\n\n{tree}"
 
-    _cached_tree = await build_accessibility_tree(page)
 
-    return f"Scrolled {direction} by {amount}. Page has {len(_cached_tree)} visible elements."
+@tool
+async def browser_go_back() -> str:
+    """Go back to the previous page."""
+    page = await _open_page()
+    await page.go_back(wait_until="domcontentloaded", timeout=get_settings().BROWSER_TIMEOUT)
+    tree = await _snapshot(page)
+    await _report("back")
+    return f"URL: {page.url}\n\n{tree}"
 
 
 @tool
 async def browser_wait(seconds: int = 2) -> str:
-    """Wait for the page to load or update.
-
-    Use after clicking something that triggers a page load or
-    AJAX request. Max wait: 10 seconds.
+    """Wait for the page to finish updating, then return the refreshed snapshot.
 
     Args:
-        seconds: Seconds to wait (1-10, default: 2).
-
-    Returns:
-        Confirmation and current URL.
+        seconds: 1-10 seconds.
     """
-    global _cached_tree
-    page = _get_page()
+    page = await _open_page()
     seconds = max(1, min(10, seconds))
-
     await page.wait_for_timeout(seconds * 1000)
-    _cached_tree = await build_accessibility_tree(page)
-
-    return f"Waited {seconds}s. Current URL: {page.url}. {len(_cached_tree)} elements visible."
+    tree = await _snapshot(page)
+    await _report("wait", target=f"{seconds}s")
+    return f"URL: {page.url}\n\n{tree}"
 
 
 @tool
 async def browser_get_page_info() -> str:
-    """Get the current page's accessibility tree (element list).
-
-    Refreshes the tree and returns all interactive and content elements.
-    Use this after actions to see the updated page state.
-
-    Returns:
-        The current page structure with numbered elements.
-    """
-    global _cached_tree
-    page = _get_page()
-    _cached_tree = await build_accessibility_tree(page)
-    tree_text = format_tree_for_agent(_cached_tree)
-
-    return f"URL: {page.url}\n\n{tree_text}"
-
-
-@tool
-async def browser_fill_form(fields: list[dict]) -> str:
-    """Fill multiple form fields at once.
-
-    Each field should have 'index' (element index) and 'value' (text to enter).
-    For select elements, pass the option text as 'value'.
-
-    Args:
-        fields: List of {'index': int, 'value': str} dictionaries.
-
-    Returns:
-        Summary of fields filled.
-    """
-    page = _get_page()
-    results = []
-
-    for field in fields:
-        idx = field.get("index", -1)
-        value = field.get("value", "")
-
-        if idx < 0 or idx >= len(_cached_tree):
-            results.append(f"[{idx}] Error: invalid index")
-            continue
-
-        el = _cached_tree[idx]
-        try:
-            await page.mouse.click(el["x"], el["y"])
-            await random_pause(50, 150)
-
-            if el["tag"] == "select":
-                await page.select_option(el["selector"], label=value)
-            else:
-                await page.keyboard.press("Control+a")
-                await page.keyboard.press("Backspace")
-                await human_type(page, value, speed="fast")
-
-            results.append(f"[{idx}] {el['name'][:40]}: filled with '{value}'")
-        except Exception as e:
-            results.append(f"[{idx}] Error: {e}")
-
-    return "Form fill results:\n" + "\n".join(results)
+    """Return a fresh numbered snapshot of the current page's headings, text and controls."""
+    page = await _open_page()
+    tree = await _snapshot(page)
+    await _report("inspect", target="page structure")
+    return f"URL: {page.url}\nTitle: {await page.title()}\n\n{tree}"
 
 
 @tool
 async def browser_get_links() -> str:
-    """Get all links on the current page with their URLs.
-
-    Returns:
-        List of links with text and href.
-    """
-    page = _get_page()
-    links = await page.evaluate("""() => {
-        return Array.from(document.querySelectorAll('a[href]'))
-            .filter(a => a.offsetParent !== null)
-            .slice(0, 50)
-            .map(a => ({
-                text: (a.innerText || a.getAttribute('aria-label') || '').trim().substring(0, 100),
-                href: a.href,
-            }))
-            .filter(l => l.text && l.href);
-    }""")
-
+    """List the visible links on the current page (up to 60)."""
+    page = await _open_page()
+    links = await page.evaluate("""() => Array.from(document.querySelectorAll('a[href]'))
+        .filter(a => a.offsetParent !== null)
+        .map(a => ({text: (a.innerText || a.getAttribute('aria-label') || '').trim().substring(0, 100), href: a.href}))
+        .filter(l => l.text && l.href.startsWith('http'))
+        .slice(0, 60)""")
+    await _report("extract", target="links")
     if not links:
-        return "No visible links found on the page."
-
-    lines = [f"- [{l['text']}]({l['href']})" for l in links]
-    return f"Found {len(links)} links:\n" + "\n".join(lines)
+        return "No visible links on this page."
+    return "\n".join(f"- [{l['text']}]({l['href']})" for l in links)
 
 
 def get_browser_tools() -> list[BaseTool]:
-    """Return all browser automation tools."""
     return [
         browser_navigate,
         browser_click,
         browser_type,
-        browser_screenshot,
         browser_get_text,
         browser_scroll,
+        browser_go_back,
         browser_wait,
         browser_get_page_info,
-        browser_fill_form,
         browser_get_links,
     ]

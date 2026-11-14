@@ -3,7 +3,6 @@
 Per user + session + day. Loaded every turn into agent context.
 Auto-compressed to archive when token count exceeds threshold.
 """
-import uuid
 from datetime import date, datetime, timezone
 
 import structlog
@@ -25,8 +24,8 @@ def _count_tokens(text: str) -> int:
 
 async def load_working_memory(
     db: AsyncSession,
-    user_id: uuid.UUID,
-    session_id: uuid.UUID,
+    user_id: str,
+    session_id: str,
 ) -> list[dict]:
     """Load today's STM entries for context injection."""
     today = date.today()
@@ -47,8 +46,8 @@ async def load_working_memory(
 
 async def append_to_working_memory(
     db: AsyncSession,
-    user_id: uuid.UUID,
-    session_id: uuid.UUID,
+    user_id: str,
+    session_id: str,
     role: str,
     content: str,
 ) -> bool:
@@ -98,8 +97,8 @@ async def append_to_working_memory(
 
 async def compress_working_memory(
     db: AsyncSession,
-    user_id: uuid.UUID,
-    session_id: uuid.UUID,
+    user_id: str,
+    session_id: str,
 ) -> str | None:
     """Compress today's STM into an archive summary using LLM.
 

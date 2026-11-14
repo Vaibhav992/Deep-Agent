@@ -5,6 +5,7 @@ from app.db.database import get_db
 from app.auth.dependencies import get_current_user
 from app.auth.models import User
 from app.sessions import service
+from app.chat.schemas import MessageResponse
 from app.sessions.schemas import SessionCreate, SessionUpdate, SessionResponse
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -40,6 +41,17 @@ async def get_session(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     return session
+
+
+@router.get("/{session_id}/messages", response_model=list[MessageResponse])
+async def get_session_messages(
+    session_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if not await service.get_session(db, session_id, user.id):
+        raise HTTPException(status_code=404, detail="Session not found")
+    return await service.list_messages(db, session_id)
 
 
 @router.patch("/{session_id}", response_model=SessionResponse)

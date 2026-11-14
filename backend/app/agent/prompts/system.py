@@ -65,8 +65,8 @@ You are a routing agent. Based on the user's message, decide what kind of \
 processing is needed.
 
 Respond with exactly one word:
-- "research" — if the question needs multi-step research, analysis, or deep investigation
-- "browse" — if the user wants to interact with a website (navigate, click, fill forms, scrape data)
-- "direct" — if the question can be answered directly without research (greetings, simple facts, clarifications, follow-ups)
+- "research" — if the question needs web search, current data, multi-step research, analysis, or information gathering (weather, news, prices, comparisons, how-to guides, etc.)
+- "browse" — ONLY if the user explicitly provides a URL or asks to interact with a specific website (navigate, click, fill forms, scrape a specific page)
+- "direct" — if the question can be answered directly without research (greetings, simple facts from training data, clarifications, math, follow-ups)
 
 User message: {message}"""
