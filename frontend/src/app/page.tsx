@@ -9,7 +9,7 @@ import HeroReplay from "@/components/landing/hero-replay";
 import FeatureStack from "@/components/landing/feature-stack";
 import MakerSection, { LinkedInIcon, MAKER, MakerAvatar } from "@/components/landing/maker";
 import { EASE_OUT, FULL_MOTION, SplitText, gsap, useGSAP } from "@/lib/gsap";
-import { APP_NAME, WORDMARK } from "@/lib/brand";
+import { APP_NAME, TAGLINE } from "@/lib/brand";
 import ThemeToggle from "@/components/theme-toggle";
 
 // What the agent actually runs on today; no invented customer logos.
@@ -164,14 +164,12 @@ export default function LandingPage() {
       <footer className="bg-night text-white/60">
         <div className="mx-auto flex max-w-[1280px] flex-col gap-10 px-6 py-14 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <span className="flex items-center gap-2 text-white">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <rect x="1" y="1" width="22" height="22" rx="7" fill="#e5f4ef" />
-                <path d="M7 8h10L10 17" stroke="var(--forest)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <span className="font-display text-[17px] leading-none tracking-[-0.04em]">{WORDMARK}</span>
+            <span className="text-white">
+              <Wordmark tone="onDark" />
             </span>
-            <p className="mt-4 max-w-[280px] text-[13px] leading-5">An agent that researches and browses for you, in plain sight.</p>
+            <p className="mt-4 max-w-[280px] text-[13px] leading-5">
+              {TAGLINE} <span className="text-white/40">ध्यानिक · of deep attention.</span>
+            </p>
           </div>
           <nav className="grid grid-cols-2 gap-x-16 gap-y-2 text-[14px]">
             <a href="#product" className="hover:text-white">Product</a>

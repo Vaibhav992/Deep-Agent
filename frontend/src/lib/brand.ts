@@ -1,3 +1,5 @@
 // Product name in one place: change it here and every page follows.
-export const APP_NAME = "Deep Agent Monk";
-export const WORDMARK = "deep agent monk";
+// Dhyanik (ध्यानिक), "of dhyāna": deep, unbroken meditative attention.
+export const APP_NAME = "Dhyanik";
+export const WORDMARK = "dhyanik";
+export const TAGLINE = "Deep thought, in plain sight.";

@@ -18,8 +18,9 @@
   --on-ink: #ffffff;
   /* Surfaces that stay dark in both themes (footer, the ink feature panel, overlay chips) */
   --night: #141614;
-  --logo-bg: #13291f;
-  --logo-fg: #e5f4ef;
+  /* Logo: forest ensō, saffron bindu (the one warm accent) */
+  --logo-arc: #13291f;
+  --saffron: #d6862a;
   --forest: #13291f;
   --forest-2: #355146;
   --mint: #e5f4ef;
@@ -56,8 +57,8 @@
   --ink-hover: #d6d5cf;
   --on-ink: #141614;
   --night: #0b0c0b;
-  --logo-bg: #cfe8dc;
-  --logo-fg: #13291f;
+  --logo-arc: #cfe8dc;
+  --saffron: #eba24a;
   --mint: #1f3a2d;
   --signal: #3fbf7f;
   --signal-ink: #0b0c0b;
@@ -84,8 +85,8 @@
     --ink-hover: #d6d5cf;
     --on-ink: #141614;
     --night: #0b0c0b;
-    --logo-bg: #cfe8dc;
-    --logo-fg: #13291f;
+    --logo-arc: #cfe8dc;
+    --saffron: #eba24a;
     --mint: #1f3a2d;
     --signal: #3fbf7f;
     --signal-ink: #0b0c0b;
@@ -122,6 +123,7 @@
   --color-forest: var(--forest);
   --color-forest-2: var(--forest-2);
   --color-mint: var(--mint);
+  --color-saffron: var(--saffron);
   --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-type), ui-monospace, "SFMono-Regular", monospace;
   --font-display: var(--font-type), ui-monospace, monospace;

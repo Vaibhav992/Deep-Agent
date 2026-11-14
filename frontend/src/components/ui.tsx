@@ -19,20 +19,29 @@ function getNowMinute(): Date {
   return cachedNow;
 }
 
-export function Logo({ size = 22 }: { size?: number }) {
+/**
+ * The Dhyanik mark: an open ensō (the uncluttered, awakened mind) with a bindu, a single point of
+ * focus, resting in its opening. Read together it is also a seated figure in meditation.
+ * `tone="auto"` follows the theme; `tone="onDark"` is for surfaces that are dark in both themes.
+ */
+export function Logo({ size = 24, tone = "auto" }: { size?: number; tone?: "auto" | "onDark" }) {
+  const arc = tone === "onDark" ? "#e5f4ef" : "var(--logo-arc)";
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="1" y="1" width="22" height="22" rx="7" fill="var(--logo-bg)" />
-      <path d="M7 8h10L10 17" stroke="var(--logo-fg)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true">
+      <path d={ENSO_PATH} stroke={arc} strokeWidth="3.2" strokeLinecap="round" />
+      <circle cx="16" cy="8.2" r="2.7" fill="var(--saffron)" />
     </svg>
   );
 }
 
-export function Wordmark() {
+// Circle centred at (16,18), r 10.5, open across the top (from 300° round to 240°).
+export const ENSO_PATH = "M21.25 8.907A10.5 10.5 0 1 1 10.75 8.907";
+
+export function Wordmark({ tone = "auto" }: { tone?: "auto" | "onDark" }) {
   return (
     <span className="flex items-center gap-2">
-      <Logo />
-      <span className="font-display text-[17px] leading-none tracking-[-0.04em]">{WORDMARK}</span>
+      <Logo tone={tone} />
+      <span className="font-display text-[19px] leading-none tracking-[-0.045em]">{WORDMARK}</span>
     </span>
   );
 }
