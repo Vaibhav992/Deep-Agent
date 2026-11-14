@@ -1,4 +1,3 @@
-# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -32,9 +31,15 @@ pgdata/
 kafka_data/
 redis_data/
 
-# All markdown files ignored except README.md
+.claude
+
 *.md
+*.MD
 !README.md
+!readme.md
+
+docs/
+audit/
 
 # Alembic
 alembic/versions/*.py

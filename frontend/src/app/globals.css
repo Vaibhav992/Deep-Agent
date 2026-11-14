@@ -129,26 +129,42 @@
   --font-display: var(--font-type), ui-monospace, monospace;
 }
 
-html,
-body {
-  background: var(--canvas);
-  color: var(--fg);
-  font-family: var(--font-sans);
-  font-size: 14px;
-  line-height: 22px;
-  -webkit-font-smoothing: antialiased;
-  font-feature-settings: "ss01", "cv11";
-}
+/* Element defaults live in the base layer so Tailwind utilities (layered) can override them.
+   Unlayered rules beat every layer regardless of specificity: an unlayered :focus-visible
+   overrode `focus:outline-none` on the composer and painted a 2px ink (white in dark) frame. */
+@layer base {
+  html,
+  body {
+    background: var(--canvas);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 22px;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "ss01", "cv11";
+  }
 
-::selection {
-  background: var(--mint);
-  color: var(--fg);
-}
+  ::selection {
+    background: var(--mint);
+    color: var(--fg);
+  }
 
-:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
-  border-radius: 6px;
+  /* Keyboard focus ring. No border-radius here: it would square off focused pills. */
+  :focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+  }
+
+  /* Text fields show focus on their container (focus-within), not with a ring. */
+  textarea:focus-visible,
+  input:not([type="checkbox"], [type="radio"], [type="range"]):focus-visible {
+    outline: none;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
 }
 
 .tabular {
@@ -190,11 +206,6 @@ body {
   color: var(--fg);
 }
 .btn-ghost:hover { background: var(--surface-2); }
-
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-strong) transparent;
-}
 
 /* Live pulse: the only looping animation in the product */
 @keyframes live-pulse {
@@ -314,10 +325,31 @@ body {
   animation: swap-in 180ms var(--ease-out) backwards;
 }
 
+/* Toasts rise in from below; leave faster than they arrive */
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+}
+@keyframes toast-out {
+  to { opacity: 0; transform: translateY(4px) scale(0.98); }
+}
+.toast-in { animation: toast-in 240ms var(--ease-out) backwards; }
+.toast-out { animation: toast-out 180ms var(--ease-out) forwards; }
+
+/* Modal dialog: card scales in, backdrop fades */
+@keyframes dialog-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
+}
+@keyframes backdrop-in {
+  from { opacity: 0; }
+}
+dialog.dialog-in[open] { animation: dialog-in 220ms var(--ease-out); }
+dialog.dialog-in[open]::backdrop { animation: backdrop-in 220ms var(--ease-out); }
+
 @media (prefers-reduced-motion: reduce) {
   .live-dot, .skeleton, .enter, .scan-line { animation: none; }
-  .frame-in, .swap-in, .panel-in { animation-name: fade-only; }
-  .panel-out { animation-name: fade-out-only; }
+  .frame-in, .swap-in, .panel-in, .toast-in { animation-name: fade-only; }
+  dialog.dialog-in[open] { animation-name: fade-only; }
+  .panel-out, .toast-out { animation-name: fade-out-only; }
   .press:active:not(:disabled) { transform: none; }
 }
 @keyframes fade-only {

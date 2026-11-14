@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useAuth, UserButton } from "@clerk/nextjs";
-import { PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, Trash2, X } from "lucide-react";
-import { api } from "@/lib/api";
+import { PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, Trash2 } from "lucide-react";
+import { api, ApiError } from "@/lib/api";
+import { toast } from "@/lib/toast";
+import ConfirmDialog from "./confirm-dialog";
 import { useActiveRun } from "@/lib/runner";
 import { useChatStore } from "@/store/chat-store";
 import type { Session } from "@/lib/types";
@@ -48,8 +50,8 @@ export default function Sidebar({
   const { sessions, sessionsLoaded, removeSession } = useChatStore();
   const running = useActiveRun((s) => s.active);
   const [query, setQuery] = useState("");
-  const [confirmId, setConfirmId] = useState<string | null>(null);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Session | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const now = useClientNow();
   const groups = useMemo(() => {
@@ -57,15 +59,40 @@ export default function Sidebar({
     return groupSessions(q ? sessions.filter((s) => s.title.toLowerCase().includes(q)) : sessions, now);
   }, [sessions, query, now]);
 
-  async function deleteSession(id: string) {
-    setDeleteError(null);
+  function askDelete(s: Session) {
+    if (running?.sessionId === s.id) {
+      toast.info("This task is still running", { description: "Stop it first, then delete it." });
+      return;
+    }
+    setPendingDelete(s);
+  }
+
+  async function confirmDelete() {
+    const s = pendingDelete;
+    if (!s) return;
+    setDeleting(true);
+    const title = s.title || "Untitled task";
     try {
-      await api.delete(getToken, `/sessions/${id}`);
-      removeSession(id);
-      setConfirmId(null);
-      if (id === activeId) router.push("/chat");
-    } catch {
-      setDeleteError("Couldn't delete that task. Try again.");
+      await api.delete(getToken, `/sessions/${s.id}`);
+      removeSession(s.id);
+      setPendingDelete(null);
+      if (s.id === activeId) router.push("/chat");
+      toast.success("Task deleted", { description: title });
+    } catch (e) {
+      setPendingDelete(null);
+      const notFound = e instanceof ApiError && e.status === 404;
+      if (notFound) {
+        // Already gone on the server (e.g. deleted in another tab): reflect that locally.
+        removeSession(s.id);
+        toast.info("Task was already deleted", { description: title });
+      } else {
+        toast.error("Couldn't delete task", {
+          description: "Something went wrong on our side. Please try again.",
+          action: { label: "Try again", onClick: () => setPendingDelete(s) },
+        });
+      }
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -132,7 +159,6 @@ export default function Sidebar({
         {sessionsLoaded && sessions.length > 0 && groups.length === 0 && (
           <p className="px-3 pt-4 text-[13px] text-fg-3">No tasks match “{query}”.</p>
         )}
-        {deleteError && <p className="px-3 pt-2 text-[12px] text-danger" role="alert">{deleteError}</p>}
         {groups.map((g) => (
           <section key={g.label} className="pt-4">
             <h3 className="eyebrow px-3 pb-1 text-fg-3">{g.label}</h3>
@@ -142,17 +168,7 @@ export default function Sidebar({
                 const isRunning = running?.sessionId === s.id;
                 return (
                   <li key={s.id} className="group relative">
-                    {confirmId === s.id ? (
-                      <div className="flex h-8 items-center gap-1 rounded-md bg-danger-wash px-3 text-[13px]">
-                        <span className="flex-1 truncate text-fg">Delete this task?</span>
-                        <button onClick={() => deleteSession(s.id)} className="rounded px-1.5 text-danger hover:underline">Delete</button>
-                        <button onClick={() => setConfirmId(null)} className="rounded p-1 text-fg-3 hover:text-fg" aria-label="Cancel delete">
-                          <X className="size-3.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <Link
+                    <Link
                           href={`/chat/${s.id}`}
                           onClick={onNavigate}
                           className={`flex h-8 items-center gap-2 rounded-md pl-3 pr-8 text-[13px] transition-colors ${
@@ -164,14 +180,14 @@ export default function Sidebar({
                           <span className="truncate">{s.title || "Untitled task"}</span>
                         </Link>
                         <button
-                          onClick={() => setConfirmId(s.id)}
-                          className="absolute right-1.5 top-1.5 rounded p-1 text-fg-3 opacity-0 transition-opacity hover:text-danger focus:opacity-100 group-hover:opacity-100"
+                          onClick={() => askDelete(s)}
+                          className={`absolute right-1.5 top-1.5 rounded p-1 text-fg-3 transition-opacity hover:text-danger focus-visible:opacity-100 group-hover:opacity-100 ${
+                            pendingDelete?.id === s.id ? "opacity-100" : "opacity-0 [@media(hover:none)]:opacity-100"
+                          }`}
                           aria-label={`Delete ${s.title}`}
                         >
                           <Trash2 className="size-3.5" />
                         </button>
-                      </>
-                    )}
                   </li>
                 );
               })}
@@ -179,6 +195,22 @@ export default function Sidebar({
           </section>
         ))}
       </div>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete this task?"
+        description={
+          <>
+            <span className="font-medium text-fg">&ldquo;{pendingDelete?.title || "Untitled task"}&rdquo;</span> and its
+            whole conversation will be permanently deleted. Saved memories are kept. This can&apos;t be undone.
+          </>
+        }
+        confirmLabel={deleting ? "Deleting…" : "Delete task"}
+        destructive
+        busy={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
 
       <div className="flex items-center gap-2 border-t border-line px-3 py-3">
         <UserButton />

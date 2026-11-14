@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { useUser, UserProfile } from "@clerk/nextjs";
-import { ArrowLeft, Check } from "lucide-react";
+import { useUser, UserProfile, SignOutButton } from "@clerk/nextjs";
+import { ArrowLeft, Check, LogOut } from "lucide-react";
 import { api } from "@/lib/api";
 import type { LLMModel } from "@/lib/types";
 import ThemeToggle from "@/components/theme-toggle";
@@ -113,12 +113,20 @@ export default function SettingsPage() {
         <section>
           <h2 className="text-[14px] font-medium">Account</h2>
           <p className="mt-1 text-[13px] text-fg-2">Profile, email, password and connected accounts are managed by Clerk.</p>
-          <button
-            onClick={() => setShowAccount((s) => !s)}
-            className="mt-4 rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-[13px] text-fg transition-colors hover:border-line-strong"
-          >
-            {showAccount ? "Hide account settings" : "Manage account"}
-          </button>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setShowAccount((s) => !s)}
+              className="rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-[13px] text-fg transition-colors hover:border-line-strong"
+            >
+              {showAccount ? "Hide account settings" : "Manage account"}
+            </button>
+            <SignOutButton redirectUrl="/">
+              <button className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-[13px] text-fg-2 transition-colors hover:border-danger hover:text-danger">
+                <LogOut className="size-3.5" />
+                Sign out
+              </button>
+            </SignOutButton>
+          </div>
           {showAccount && (
             <div className="mt-4">
               <UserProfile routing="hash" />

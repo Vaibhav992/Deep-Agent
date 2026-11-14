@@ -1,7 +1,8 @@
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.chat.models import ChatMessage
+from app.db.models import LongTermMemory, WorkingMemory, WorkingMemoryArchive
 from app.sessions.models import Session
 from app.sessions.schemas import SessionCreate, SessionUpdate
 from app.utils.id_generator import generate_id
@@ -80,6 +81,21 @@ async def delete_session(
     session = await get_session(db, session_id, user_id)
     if not session:
         return False
+    # working_memory, working_memory_archive and long_term_memory reference sessions without ON DELETE
+    # rules in the live schema, so deleting the session alone fails with a foreign-key violation (500).
+    # Clear the per-session scratch memory, keep saved facts but unlink them, then delete — one transaction.
+    # chat_messages cascade at the database level.
+    await db.execute(delete(WorkingMemory).where(WorkingMemory.session_id == session_id, WorkingMemory.user_id == user_id))
+    await db.execute(
+        delete(WorkingMemoryArchive).where(
+            WorkingMemoryArchive.session_id == session_id, WorkingMemoryArchive.user_id == user_id
+        )
+    )
+    await db.execute(
+        update(LongTermMemory)
+        .where(LongTermMemory.source_session_id == session_id, LongTermMemory.user_id == user_id)
+        .values(source_session_id=None)
+    )
     await db.delete(session)
     await db.commit()
     return True

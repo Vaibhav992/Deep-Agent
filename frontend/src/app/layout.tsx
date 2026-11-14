@@ -3,6 +3,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { Instrument_Sans, Spline_Sans_Mono } from "next/font/google";
 import { APP_NAME } from "@/lib/brand";
 import { THEME_BOOT_SCRIPT } from "@/lib/theme-script";
+import Toaster from "@/components/toaster";
 import "./globals.css";
 
 // Swiss grotesk for the UI and body; a typewriter mono for display type, labels and machine text.
@@ -25,17 +26,29 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <ClerkProvider
       appearance={{
+        // Clerk reads our CSS tokens directly, so its cards and menus follow the light/dark slider.
+        // Hard-coded light hex values here left the user menu's action text white-on-white in dark mode.
         variables: {
-          colorPrimary: "#17171c",
-          colorPrimaryForeground: "#ffffff",
-          colorBackground: "#ffffff",
-          colorInput: "#ffffff",
-          colorInputForeground: "#17171c",
-          colorForeground: "#17171c",
-          colorMutedForeground: "#55555e",
-          colorBorder: "rgb(23 23 28 / 0.14)",
-          colorDanger: "#c4372b",
+          colorPrimary: "var(--ink)",
+          colorPrimaryForeground: "var(--on-ink)",
+          colorBackground: "var(--canvas)",
+          colorNeutral: "var(--fg)",
+          colorForeground: "var(--fg)",
+          colorMutedForeground: "var(--fg-2)",
+          colorMuted: "var(--surface-2)",
+          colorInput: "var(--canvas)",
+          colorInputForeground: "var(--fg)",
+          colorBorder: "var(--line-strong)",
+          colorRing: "var(--ink)",
+          colorDanger: "var(--danger)",
+          colorShadow: "rgb(0 0 0 / 0.12)",
+          fontFamily: "var(--font-sans)",
           borderRadius: "10px",
+        },
+        elements: {
+          userButtonPopoverCard: "border border-[var(--line)] shadow-[0_8px_30px_rgb(0_0_0/0.12)]",
+          userButtonPopoverActionButton: "text-[var(--fg)] hover:bg-[var(--surface-2)]",
+          userButtonPopoverActionButton__signOut: "hover:text-[var(--danger)]",
         },
       }}
     >
@@ -44,7 +57,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <head>
           <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         </head>
-        <body className="h-full">{children}</body>
+        <body className="h-full">
+          {children}
+          <Toaster />
+        </body>
       </html>
     </ClerkProvider>
   );
